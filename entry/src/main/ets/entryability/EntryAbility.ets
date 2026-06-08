@@ -1,6 +1,6 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window, AppStorage } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
 import { ConfigService } from '../services/ConfigService';
 
@@ -10,9 +10,9 @@ export default class EntryAbility extends UIAbility {
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     // 初始化全局状态
     if (!AppStorage.has('themeMode')) {
-      AppStorage.set<string>('themeMode', 'auto');
+      AppStorage.set('themeMode', 'auto');
     }
-    const savedTheme: string = AppStorage.get<string>('themeMode') || 'auto';
+    const savedTheme: string = AppStorage.get('themeMode') || 'auto';
     try {
       if (savedTheme === 'dark') {
         this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);

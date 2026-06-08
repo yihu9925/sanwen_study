@@ -1,6 +1,6 @@
 // 设置页 - 含AI API配置 + 暗黑模式
 import { AppRouter } from '../AppRouter';
-import { promptAction, AppStorage } from '@kit.ArkUI';
+import { promptAction } from '@kit.ArkUI';
 import { ConfigService } from '../services/ConfigService';
 
 @Entry
@@ -30,7 +30,7 @@ struct SettingsPage {
   setDarkMode(enabled: boolean): void {
     this.isDarkMode = enabled;
     this.themeMode = enabled ? 'dark' : 'light';
-    AppStorage.set<string>('themeMode', this.themeMode);
+    AppStorage.set('themeMode', this.themeMode);
     promptAction.showToast({ message: '深色模式已' + (enabled ? '开启' : '关闭') });
   }
 
