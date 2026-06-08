@@ -89,12 +89,12 @@ export struct ControversyView {
         // 正方证据
         if (controversy.proEvidence && controversy.proEvidence.length > 0) {
           Column() {
-            ForEach(controversy.proEvidence, (evidence: string) => {
+            ForEach(controversy.proEvidence, (evidence: Record<string, string>) => {
               Row() {
                 Text('•')
                   .fontSize(12)
                   .margin({ right: 4 });
-                Text(evidence)
+                Text(evidence['title'] || evidence['content'] || '')
                   .fontSize(12)
                   .fontColor('#666666');
               }
@@ -130,12 +130,12 @@ export struct ControversyView {
         // 反方证据
         if (controversy.conEvidence && controversy.conEvidence.length > 0) {
           Column() {
-            ForEach(controversy.conEvidence, (evidence: string) => {
+            ForEach(controversy.conEvidence, (evidence: Record<string, string>) => {
               Row() {
                 Text('•')
                   .fontSize(12)
                   .margin({ right: 4 });
-                Text(evidence)
+                Text(evidence['title'] || evidence['content'] || '')
                   .fontSize(12)
                   .fontColor('#666666');
               }
@@ -154,7 +154,7 @@ export struct ControversyView {
       .margin({ top: 12, left: 16, right: 16 });
 
       // AI总结
-      if (controversy.aiSummary) {
+      if (controversy.aiSummary && controversy.aiSummary.length > 0) {
         Column() {
           Row() {
             Text('🤖 AI总结')
@@ -172,6 +172,20 @@ export struct ControversyView {
         .width('100%')
         .padding(12)
         .backgroundColor('#E6F7FF')
+        .borderRadius(8)
+        .margin({ top: 12, left: 16, right: 16 });
+      } else {
+        Column() {
+          Row() {
+            Text('生成AI总结中...')
+              .fontSize(14)
+              .fontColor('#999999');
+          }
+          .width('100%');
+        }
+        .width('100%')
+        .padding(12)
+        .backgroundColor('#F5F5F5')
         .borderRadius(8)
         .margin({ top: 12, left: 16, right: 16 });
       }

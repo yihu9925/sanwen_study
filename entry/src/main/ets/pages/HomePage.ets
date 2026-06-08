@@ -88,10 +88,21 @@ export struct HomePage {
   @Builder
   SearchBar(): void {
     Column() {
-      Text('三问高效学习机')
-        .fontSize(24)
-        .fontWeight(FontWeight.Bold)
-        .margin({ bottom: 16 });
+      Row() {
+        Text('三问高效学习机')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .layoutWeight(1);
+
+        Button('刷新')
+          .fontSize(14)
+          .height(32)
+          .onClick(() => {
+            this.loadCourses();
+          });
+      }
+      .width('100%')
+      .margin({ bottom: 16 });
 
       Row() {
         TextInput({ placeholder: '提出你的学习问题...', text: this.searchText })

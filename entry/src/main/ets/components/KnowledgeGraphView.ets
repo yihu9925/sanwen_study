@@ -1,47 +1,56 @@
-// 知识图谱可视化组件
+// 知识图谱可视化组件 - 支持拖动和缩放
 import { KnowledgeGraph, GraphNode, GraphEdge } from '../models/KnowledgeGraph';
 
 @Component
 export struct KnowledgeGraphView {
   @Prop graph: KnowledgeGraph = { nodes: [], edges: [] };
   @State selectedNode: GraphNode | null = null;
+  @State zoomScale: number = 1.0;
+  @State offsetX: number = 0;
+  @State offsetY: number = 0;
   private canvasWidth: number = 350;
   private canvasHeight: number = 350;
+  private lastTouchX: number = 0;
+  private lastTouchY: number = 0;
+  private isDragging: boolean = false;
+  private lastPinchDist: number = 0;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
 
+  aboutToAppear(): void {
+    this.offsetX = this.canvasWidth / 2;
+    this.offsetY = this.canvasHeight / 2;
+  }
+
   build() {
     Column() {
-      // 标题
       Row() {
         Text('知识图谱')
           .fontSize(18)
           .fontWeight(FontWeight.Bold);
-        
-        Text(`节点: ${this.graph.nodes.length}`)
+        Text('节点: ' + this.graph.nodes.length)
           .fontSize(12)
           .fontColor('#999999')
           .margin({ left: 8 });
+        Text('  |  拖动移动 · 拠缩放大')
+          .fontSize(10)
+          .fontColor('#CCCCCC')
+          .margin({ left: 4 });
       }
       .width('100%')
       .padding(16);
 
-      // Canvas绑制区域
       Canvas(this.context)
         .width(this.canvasWidth)
         .height(this.canvasHeight)
         .backgroundColor('#FAFAFA')
         .borderRadius(8)
-        .onReady(() => {
-          this.drawGraph();
-        });
+        .onReady(() => { this.drawGraph(); })
+        .onTouch((event: TouchEvent) => { this.handleTouch(event); });
 
-      // 选中节点详情
       if (this.selectedNode) {
         this.NodeDetailCard();
       }
-
-      // 图例
       this.LegendCard();
     }
     .width('100%')
@@ -49,86 +58,117 @@ export struct KnowledgeGraphView {
     .borderRadius(12);
   }
 
+  private handleTouch(event: TouchEvent): void {
+    const touches = event.touches;
+    if (touches.length === 1) {
+      const touch = touches[0];
+      if (event.type === TouchType.Down) {
+        this.isDragging = true;
+        this.lastTouchX = touch.x;
+        this.lastTouchY = touch.y;
+      } else if (event.type === TouchType.Move && this.isDragging) {
+        const dx = touch.x - this.lastTouchX;
+        const dy = touch.y - this.lastTouchY;
+        this.offsetX += dx;
+        this.offsetY += dy;
+        this.lastTouchX = touch.x;
+        this.lastTouchY = touch.y;
+        this.drawGraph();
+      } else if (event.type === TouchType.Up) {
+        if (this.isDragging) {
+          const clickedNode = this.hitTest(touch.x, touch.y);
+          if (clickedNode) {
+            this.selectedNode = clickedNode;
+          } else {
+            this.selectedNode = null;
+          }
+        }
+        this.isDragging = false;
+      }
+    } else if (touches.length === 2) {
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const dist = Math.sqrt(
+        (t2.x - t1.x) * (t2.x - t1.x) + (t2.y - t1.y) * (t2.y - t1.y)
+      );
+      if (this.lastPinchDist > 0) {
+        const factor = dist / this.lastPinchDist;
+        let newScale = this.zoomScale * factor;
+        if (newScale < 0.3) { newScale = 0.3; }
+        if (newScale > 3.0) { newScale = 3.0; }
+        this.zoomScale = newScale;
+        this.drawGraph();
+      }
+      this.lastPinchDist = dist;
+    }
+
+    if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+      this.lastPinchDist = 0;
+      this.isDragging = false;
+    }
+  }
+
+  private hitTest(tx: number, ty: number): GraphNode | null {
+    for (const node of this.graph.nodes) {
+      const nx = node.x * this.zoomScale + this.offsetX;
+      const ny = node.y * this.zoomScale + this.offsetY;
+      const dist = Math.sqrt((tx - nx) * (tx - nx) + (ty - ny) * (ty - ny));
+      if (dist <= node.radius * this.zoomScale + 10) {
+        return node;
+      }
+    }
+    return null;
+  }
+
   @Builder
   NodeDetailCard(): void {
     Column() {
-      Row() {
-        Text('选中节点')
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold);
-      }
-      .width('100%');
+      Text(this.selectedNode?.label || '')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold);
 
-      Column() {
-        Text(this.selectedNode?.label || '')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold);
-
-        Text(this.selectedNode?.description || '暂无描述')
-          .fontSize(12)
-          .fontColor('#666666')
-          .margin({ top: 8 });
-
-        Row() {
-          Text(`重要度: ${this.selectedNode?.importance || 0}`)
-            .fontSize(12)
-            .fontColor('#999999');
-
-          Text(`子节点: ${this.selectedNode?.children?.length || 0}`)
-            .fontSize(12)
-            .fontColor('#999999')
-            .margin({ left: 16 });
-        }
+      Text(this.selectedNode?.description || '暂无描述')
+        .fontSize(12)
+        .fontColor('#666666')
         .margin({ top: 8 });
+
+      Row() {
+        Text('重要度: ' + (this.selectedNode?.importance || 0))
+          .fontSize(12)
+          .fontColor('#999999');
+        Text('子节点: ' + (this.selectedNode?.children?.length || 0))
+          .fontSize(12)
+          .fontColor('#999999')
+          .margin({ left: 16 });
       }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding(12)
-      .backgroundColor('#F5F5F5')
-      .borderRadius(8)
       .margin({ top: 8 });
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding(12)
+    .backgroundColor('#F5F5F5')
+    .borderRadius(8)
+    .margin({ top: 8 });
+  }
+
+  @Builder
+  LegendCard(): void {
+    Row() {
+      this.LegendItem('#007DFF', '核心概念');
+      this.LegendItem('#52C41A', '子概念');
+      this.LegendItem('#FAAD14', '关联概念');
     }
     .width('100%')
     .padding(16);
   }
 
   @Builder
-  LegendCard(): void {
+  LegendItem(color: string, label: string): void {
     Row() {
-      Row() {
-        Circle()
-          .width(12)
-          .height(12)
-          .fill('#007DFF');
-        Text('核心概念')
-          .fontSize(12)
-          .margin({ left: 4 });
-      }
-
-      Row() {
-        Circle()
-          .width(12)
-          .height(12)
-          .fill('#52C41A');
-        Text('子概念')
-          .fontSize(12)
-          .margin({ left: 4 });
-      }
-      .margin({ left: 16 });
-
-      Row() {
-        Circle()
-          .width(12)
-          .height(12)
-          .fill('#FAAD14');
-        Text('关联概念')
-          .fontSize(12)
-          .margin({ left: 4 });
-      }
-      .margin({ left: 16 });
+      Circle().width(12).height(12).fill(color);
+      Text(label).fontSize(12).margin({ left: 4 });
     }
-    .width('100%')
-    .padding(16);
+    .margin({ left: 16 });
   }
 
   private drawGraph(): void {
@@ -136,10 +176,12 @@ export struct KnowledgeGraphView {
       return;
     }
 
-    // 清空画布
     this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+    this.context.save();
+    this.context.translate(this.offsetX, this.offsetY);
+    this.context.scale(this.zoomScale, this.zoomScale);
 
-    // 绘制边
+    // Draw edges
     this.context.strokeStyle = '#E5E5E5';
     this.context.lineWidth = 2;
     for (const edge of this.graph.edges) {
@@ -151,7 +193,6 @@ export struct KnowledgeGraphView {
         this.context.lineTo(toNode.x, toNode.y);
         this.context.stroke();
 
-        // 绘制边标签
         if (edge.label) {
           const midX = (fromNode.x + toNode.x) / 2;
           const midY = (fromNode.y + toNode.y) / 2;
@@ -162,9 +203,8 @@ export struct KnowledgeGraphView {
       }
     }
 
-    // 绘制节点
+    // Draw nodes
     for (const node of this.graph.nodes) {
-      // 根据重要度选择颜色
       if (node.importance >= 5) {
         this.context.fillStyle = '#007DFF';
       } else if (node.importance >= 3) {
@@ -173,16 +213,16 @@ export struct KnowledgeGraphView {
         this.context.fillStyle = '#FAAD14';
       }
 
-      // 绘制圆形节点
       this.context.beginPath();
       this.context.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
       this.context.fill();
 
-      // 绘制节点标签
       this.context.fillStyle = '#333333';
       this.context.font = '12px sans-serif';
       this.context.textAlign = 'center';
       this.context.fillText(node.label, node.x, node.y + node.radius + 15);
     }
+
+    this.context.restore();
   }
 }
