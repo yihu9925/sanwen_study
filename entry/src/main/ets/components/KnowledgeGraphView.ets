@@ -47,7 +47,10 @@ export struct KnowledgeGraphView {
           .backgroundColor('#FAFAFA')
           .borderRadius(8)
           .onReady(() => { this.drawGraph(); })
-          .onTouch((event: TouchEvent) => { this.handleTouch(event); });
+          .onTouch((event: TouchEvent) => {
+            event.stopPropagation();
+            this.handleTouch(event);
+          });
 
         // 右侧缩放按钮
         Column() {
@@ -89,8 +92,7 @@ export struct KnowledgeGraphView {
         }
         .width(44)
         .alignItems(HorizontalAlign.Center)
-        .align(Alignment.BottomEnd)
-        .margin({ right: 8, bottom: 8 });
+        .position({ x: this.canvasWidth - 56, y: this.canvasHeight - 130 });
       }
       .width(this.canvasWidth)
       .height(this.canvasHeight)

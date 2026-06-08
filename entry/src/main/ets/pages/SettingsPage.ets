@@ -103,13 +103,18 @@ struct SettingsPage {
                 .fontSize(16)
                 .layoutWeight(1);
               TextInput({ placeholder: this.apiBase, text: this.apiBase })
-                .width(200)
+                .width(180)
                 .fontSize(14)
-                .onChange(async (val: string) => {
-                  if (val.length > 0) {
-                    await ConfigService.saveApiBase(val);
-                    this.apiBase = val;
-                  }
+                .onChange((val: string) => {
+                  this.apiBase = val;
+                });
+              Button('\u4FDD\u5B58')
+                .fontSize(12)
+                .height(32)
+                .margin({ left: 4 })
+                .onClick(() => {
+                  ConfigService.saveApiBase(this.apiBase);
+                  promptAction.showToast({ message: 'API \u5730\u5740\u5DF2\u4FDD\u5B58' });
                 });
             }
             .width('100%')
@@ -122,13 +127,18 @@ struct SettingsPage {
                 .fontSize(16)
                 .layoutWeight(1);
               TextInput({ placeholder: this.model, text: this.model })
-                .width(200)
+                .width(180)
                 .fontSize(14)
-                .onChange(async (val: string) => {
-                  if (val.length > 0) {
-                    await ConfigService.saveModel(val);
-                    this.model = val;
-                  }
+                .onChange((val: string) => {
+                  this.model = val;
+                });
+              Button('\u4FDD\u5B58')
+                .fontSize(12)
+                .height(32)
+                .margin({ left: 4 })
+                .onClick(() => {
+                  ConfigService.saveModel(this.model);
+                  promptAction.showToast({ message: '\u6A21\u578B\u540D\u79F0\u5DF2\u4FDD\u5B58' });
                 });
             }
             .width('100%')

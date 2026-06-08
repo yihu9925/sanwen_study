@@ -9,16 +9,11 @@ import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct HomePage {
-  @StorageLink('themeMode') themeMode: string = 'auto';
   @State courses: Course[] = [];
   @State searchText: string = '';
   @State isLoading: boolean = false;
   @State pageState: 'loading' | 'content' | 'empty' | 'error' = 'loading';
   private userId: string = 'default_user';
-
-  get isDark(): boolean {
-    return this.themeMode === 'dark';
-  }
 
   aboutToAppear(): void {
     this.loadCourses();
@@ -87,7 +82,7 @@ export struct HomePage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.isDark ? '#222222' : '#F5F5F5')
+    .backgroundColor('#F5F5F5')
   }
 
   @Builder
@@ -136,7 +131,7 @@ export struct HomePage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(this.isDark ? '#333333' : Color.White);
+    .backgroundColor(Color.White);
   }
 
   @Builder
@@ -237,8 +232,9 @@ export struct HomePage {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start);
 
+        // 进度 + 删除按钮
         Column() {
-          Text(`${course.progressPercent}%`)
+          Text(course.progressPercent + '%')
             .fontSize(24)
             .fontWeight(FontWeight.Bold)
             .fontColor('#007DFF');
@@ -247,15 +243,28 @@ export struct HomePage {
             .fontSize(12)
             .fontColor('#999999')
             .margin({ top: 4 });
+
+          Button() {
+            Text('\u2716').fontSize(12).fontColor('#FF4D4F');
+          }
+          .width(28)
+          .height(28)
+          .backgroundColor('#FFF1F0')
+          .borderRadius(14)
+          .margin({ top: 8 })
+          .onClick(async () => {
+            await CourseService.deleteCourse(course.id);
+            promptAction.showToast({ message: course.title + ' \u5DF2\u5220\u9664' });
+            this.loadCourses();
+          });
         }
-        .alignItems(HorizontalAlign.End);
+        .alignItems(HorizontalAlign.Center);
       }
       .width('100%');
 
-      // 进度条
       Row() {
         Row()
-          .width(`${course.progressPercent}%`)
+          .width(course.progressPercent + '%')
           .height(4)
           .backgroundColor('#007DFF')
           .borderRadius(2);

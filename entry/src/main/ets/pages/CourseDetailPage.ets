@@ -20,7 +20,6 @@ import { RadarChartView } from '../components/RadarChartView';
 @Entry
 @Component
 struct CourseDetailPage {
-  @StorageLink('themeMode') themeMode: string = 'auto';
   @State courseId: string = '';
   @State course: Course | null = null;
   @State currentTab: number = 0;
@@ -172,10 +171,6 @@ struct CourseDetailPage {
     }
   }
 
-  get isDark(): boolean {
-    return this.themeMode === 'dark';
-  }
-
   build() {
     Column() {
       if (this.isLoading) {
@@ -188,7 +183,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.isDark ? '#222222' : '#F5F5F5');
+    .backgroundColor('#F5F5F5');
   }
 
   @Builder
@@ -269,7 +264,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(this.isDark ? '#333333' : Color.White);
+    .backgroundColor(Color.White);
   }
 
   @Builder
@@ -281,7 +276,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height(48)
-    .backgroundColor(this.isDark ? '#333333' : Color.White);
+    .backgroundColor(Color.White);
   }
 
   @Builder
