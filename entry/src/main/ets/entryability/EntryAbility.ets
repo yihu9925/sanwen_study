@@ -2,6 +2,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
+import { ConfigService } from '../services/ConfigService';
 
 const DOMAIN = 0x0000;
 
@@ -17,6 +18,8 @@ export default class EntryAbility extends UIAbility {
     try {
       await RelationalStoreManager.init(this.context);
       hilog.info(DOMAIN, 'testTag', 'Database initialized successfully');
+      await ConfigService.init(this.context);
+      hilog.info(DOMAIN, 'testTag', 'Config initialized successfully');
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to initialize database. Cause: %{public}s', JSON.stringify(err));
     }
