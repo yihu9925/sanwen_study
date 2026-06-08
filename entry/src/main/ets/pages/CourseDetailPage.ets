@@ -5,6 +5,7 @@ import { Course } from '../models/Course';
 import { KnowledgeGraph, GraphNode } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
 import { Question } from '../models/Question';
+import { Document } from '../models/Document';
 import { CourseService } from '../services/CourseService';
 import { KnowledgeBaseService } from '../services/KnowledgeBaseService';
 import { AssessmentService } from '../services/AssessmentService';
@@ -25,6 +26,7 @@ struct CourseDetailPage {
   @State knowledgeGraph: KnowledgeGraph = { nodes: [], edges: [] };
   @State controversies: Controversy[] = [];
   @State questions: Question[] = [];
+  @State documents: Document[] = [];
   @State isLoading: boolean = false;
 
   aboutToAppear(): void {
@@ -77,7 +79,8 @@ struct CourseDetailPage {
         await Promise.all([
           this.loadKnowledgeGraph(),
           this.loadControversies(),
-          this.loadQuestions()
+          this.loadQuestions(),
+          this.loadDocuments()
         ]);
 
         // 如果内容为空（新创建的课程），自动触发生成
@@ -108,6 +111,10 @@ struct CourseDetailPage {
 
   async loadQuestions(): Promise<void> {
     this.questions = await AssessmentService.getQuestions(this.courseId);
+  }
+
+  async loadDocuments(): Promise<void> {
+    this.documents = await KnowledgeBaseService.getDocuments(this.courseId);
   }
 
   async generateContent(): Promise<void> {
@@ -253,6 +260,7 @@ struct CourseDetailPage {
       this.TabItem('第一问：知识图谱', 0);
       this.TabItem('第二问：争议点', 1);
       this.TabItem('第三问：测评', 2);
+      this.TabItem('资料库', 3);
     }
     .width('100%')
     .height(48)
@@ -290,9 +298,95 @@ struct CourseDetailPage {
         this.KnowledgeGraphTab();
       } else if (this.currentTab === 1) {
         this.ControversyTab();
+      } else if (this.currentTab === 3) {
+        this.MaterialsTab();
       } else {
         this.AssessmentTab();
       }
+    }
+    .width('100%')
+    .layoutWeight(1);
+  }
+
+  @Builder
+  MaterialsTab(): void {
+    Scroll() {
+      Column() {
+        if (this.documents.length === 0) {
+          Column() {
+            Text('\U0001F4DA')
+              .fontSize(48);
+            Text('\u6682\u65E0\u8D44\u6599')
+              .fontSize(16)
+              .fontColor('#999999')
+              .margin({ top: 16 });
+            Text('AI\u81EA\u52A8\u722C\u53D6\u7684\u8D44\u6599\u548C\u7528\u6237\u4E0A\u4F20\u7684\u6587\u6863\u5C06\u663E\u793A\u5728\u8FD9\u91CC')
+              .fontSize(12)
+              .fontColor('#CCCCCC')
+              .margin({ top: 8 });
+          }
+          .width('100%')
+          .height(200)
+          .justifyContent(FlexAlign.Center);
+        } else {
+          List() {
+            ForEach(this.documents, (doc: Document) => {
+              ListItem() {
+                Row() {
+                  Column() {
+                    Text(doc.sourceType === 'ai' ? '\U0001F916' : '\U0001F4C4')
+                      .fontSize(24);
+                  }
+                  .width(40)
+                  .height(40)
+                  .justifyContent(FlexAlign.Center);
+
+                  Column() {
+                    Text(doc.title || '\u672A\u547D\u540D\u6587\u6863')
+                      .fontSize(15)
+                      .fontWeight(FontWeight.Medium)
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis });
+
+                    Row() {
+                      Text(doc.sourceType === 'ai' ? 'AI\u8865\u5145' : '\u7528\u6237\u4E0A\u4F20')
+                        .fontSize(11)
+                        .fontColor('#007DFF')
+                        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                        .backgroundColor('#E6F7FF')
+                        .borderRadius(4);
+
+                      if (doc.keywords.length > 0) {
+                        Text(doc.keywords.slice(0, 3).join(' / '))
+                          .fontSize(11)
+                          .fontColor('#999999')
+                          .margin({ left: 8 });
+                      }
+                    }
+                    .margin({ top: 4 });
+                  }
+                  .layoutWeight(1)
+                  .alignItems(HorizontalAlign.Start)
+                  .margin({ left: 8 });
+
+                  Text('>')
+                    .fontSize(16)
+                    .fontColor('#CCCCCC');
+                }
+                .width('100%')
+                .padding(12)
+                .backgroundColor(Color.White)
+                .borderRadius(8);
+              }
+              .margin({ bottom: 8 });
+            });
+          }
+          .width('100%')
+          .layoutWeight(1);
+        }
+      }
+      .width('100%')
+      .padding(16);
     }
     .width('100%')
     .layoutWeight(1);

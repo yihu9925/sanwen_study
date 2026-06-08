@@ -2,7 +2,7 @@
 import { relationalStore } from '@kit.ArkData';
 import { KnowledgeGraph } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
-import { Document } from '../models/Document';
+import { Document, DocumentSourceType, DocumentFileType } from '../models/Document';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { LLMService } from './LLMService';
 import { generateUUID } from '../utils/UUID';
@@ -105,5 +105,32 @@ export class KnowledgeBaseService {
   static async discoverControversies(courseId: string, content: string): Promise<void> {
     const controversies = await LLMService.discoverControversies(content);
     await KnowledgeBaseService.updateControversies(courseId, controversies);
+  }
+
+  // 获取课程的文档列表
+  static async getDocuments(courseId: string): Promise<Document[]> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('document');
+    predicates.equalTo('course_id', courseId);
+    predicates.orderByDesc('uploaded_at');
+
+    const resultSet = await store.query(predicates);
+    const documents: Document[] = [];
+
+    while (resultSet.goToNextRow()) {
+      documents.push({
+        id: resultSet.getString(0),
+        courseId: resultSet.getString(1),
+        sourceType: resultSet.getString(2) as DocumentSourceType,
+        title: resultSet.getString(3) || '',
+        content: resultSet.getString(4) || '',
+        filePath: resultSet.getString(5) || '',
+        fileType: resultSet.getString(6) as DocumentFileType || 'txt',
+        keywords: JSON.parse(resultSet.getString(7) || '[]'),
+        uploadedAt: resultSet.getString(8) || ''
+      });
+    }
+    resultSet.close();
+    return documents;
   }
 }
