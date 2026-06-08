@@ -1,7 +1,7 @@
 // 应用主入口 - 底部Tab导航
 import { HomePage } from './HomePage';
-import { PersonalCenter } from './PersonalCenter';
 import { DiscussionHub } from './DiscussionHub';
+import { PersonalCenter } from './PersonalCenter';
 
 @Entry
 @Component
@@ -16,14 +16,14 @@ struct Index {
       .tabBar('首页');
 
       TabContent() {
-        PersonalCenter();
-      }
-      .tabBar('个人');
-
-      TabContent() {
         DiscussionHub();
       }
       .tabBar('讨论');
+
+      TabContent() {
+        PersonalCenter();
+      }
+      .tabBar('个人');
     }
     .width('100%')
     .height('100%')

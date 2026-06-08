@@ -8,6 +8,21 @@ import { LLMService } from './LLMService';
 import { generateUUID } from '../utils/UUID';
 
 export class KnowledgeBaseService {
+  // 创建知识库记录
+  static async createKnowledgeBase(courseId: string): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const now = new Date().toISOString();
+    const valueBucket: relationalStore.ValuesBucket = {
+      id: generateUUID(),
+      course_id: courseId,
+      knowledge_graph: '[]',
+      controversies: '[]',
+      created_at: now,
+      updated_at: now
+    };
+    await store.insert('knowledgebase', valueBucket);
+  }
+
   // 获取知识图谱
   static async getKnowledgeGraph(courseId: string): Promise<KnowledgeGraph> {
     const store = RelationalStoreManager.getStore();

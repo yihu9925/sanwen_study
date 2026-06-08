@@ -2,6 +2,10 @@
 import { relationalStore } from '@kit.ArkData';
 import { Course, RadarData, getDefaultRadarData, CourseStatus } from '../models/Course';
 import { RelationalStoreManager } from './RelationalStoreManager';
+import { KnowledgeBaseService } from './KnowledgeBaseService';
+import { AssessmentService } from './AssessmentService';
+import { LLMService } from './LLMService';
+import { EventBus, EVENTS } from '../utils/EventBus';
 import { generateUUID } from '../utils/UUID';
 
 export class CourseService {
@@ -29,6 +33,13 @@ export class CourseService {
     };
 
     await store.insert('course', valueBucket);
+
+    // 自动创建知识库记录
+    await KnowledgeBaseService.createKnowledgeBase(courseId);
+
+    // 后台异步生成内容（不阻塞用户跳转）
+    CourseService.generateCourseContent(courseId, question);
+
     return courseId;
   }
 
@@ -121,5 +132,42 @@ export class CourseService {
     predicates.equalTo('id', courseId);
 
     await store.delete(predicates);
+  }
+
+  // 后台异步生成课程内容（知识图谱+争议点+测评题）
+  static async generateCourseContent(courseId: string, question: string): Promise<void> {
+    try {
+      // 1. 生成知识图谱
+      const graph = await LLMService.generateKnowledgeGraph(question);
+      await KnowledgeBaseService.updateKnowledgeGraph(courseId, graph);
+      const graphEvent: Record<string, string> = {};
+      graphEvent['courseId'] = courseId;
+      EventBus.emit(EVENTS.GRAPH_READY, graphEvent);
+
+      // 2. 挖掘争议点
+      const controversies = await LLMService.discoverControversies(question);
+      await KnowledgeBaseService.updateControversies(courseId, controversies);
+      const contraEvent: Record<string, string> = {};
+      contraEvent['courseId'] = courseId;
+      EventBus.emit(EVENTS.CONTROVERSY_READY, contraEvent);
+
+      // 3. 生成测评题
+      await AssessmentService.generateQuestions(courseId, question, 1, 5);
+      const qEvent: Record<string, string> = {};
+      qEvent['courseId'] = courseId;
+      EventBus.emit(EVENTS.QUESTIONS_READY, qEvent);
+
+      // 4. 更新课程状态为active
+      const store = RelationalStoreManager.getStore();
+      const predicates = new relationalStore.RdbPredicates('course');
+      predicates.equalTo('id', courseId);
+      const updateValues: relationalStore.ValuesBucket = {
+        status: 'active',
+        updated_at: new Date().toISOString()
+      };
+      await store.update(updateValues, predicates);
+    } catch (error) {
+      console.error('Content generation failed:', JSON.stringify(error));
+    }
   }
 }

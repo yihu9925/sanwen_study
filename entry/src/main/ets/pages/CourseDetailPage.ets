@@ -75,6 +75,11 @@ struct CourseDetailPage {
           this.loadControversies(),
           this.loadQuestions()
         ]);
+
+        // 如果内容为空（新创建的课程），自动触发生成
+        if (this.knowledgeGraph.nodes.length === 0 && this.knowledgeGraph.edges.length === 0) {
+          this.generateContent();
+        }
       }
     } catch (error) {
       console.error('Load course failed:', error);
@@ -324,10 +329,17 @@ struct CourseDetailPage {
           Text('📝')
             .fontSize(64);
           
-          Text('测评题生成中...')
+          Text('AI正在生成测评题...')
             .fontSize(16)
             .fontColor('#999999')
             .margin({ top: 16 });
+
+          Button('重新生成')
+            .fontSize(14)
+            .margin({ top: 12 })
+            .onClick(() => {
+              this.generateContent();
+            });
         }
         .width('100%')
         .layoutWeight(1)
