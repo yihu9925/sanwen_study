@@ -10,7 +10,6 @@ import { KnowledgeBaseService } from '../services/KnowledgeBaseService';
 import { AssessmentService } from '../services/AssessmentService';
 import { LLMService } from '../services/LLMService';
 import { relationalStore } from '@kit.ArkData';
-import { RelationalStoreManager } from '../services/RelationalStoreManager';
 import { AppRouter } from '../AppRouter';
 import { EventBus, EVENTS } from '../utils/EventBus';
 import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
@@ -140,27 +139,8 @@ struct CourseDetailPage {
       );
 
       const courseTitle: string = this.course?.title || '';
-      // 更新雷达数据（根据生成结果设置初始值）
-      if (this.course) {
-        const store = RelationalStoreManager.getStore();
-        const radarUpdateValues: relationalStore.ValuesBucket = {
-          radar_data: JSON.stringify({
-            remember: 60,
-            understand: 45,
-            apply: 30,
-            analyze: 25,
-            evaluate: 20,
-            create: 15
-          }),
-          updated_at: new Date().toISOString()
-        };
-        const radarPredicates = new relationalStore.RdbPredicates('course');
-        radarPredicates.equalTo('id', this.courseId);
-        await store.update(radarUpdateValues, radarPredicates);
-
-        // 重新加载课程数据
-        this.course = await CourseService.getCourseById(this.courseId);
-      }
+      // 重新加载课程数据
+      this.course = await CourseService.getCourseById(this.courseId);
 
       promptAction.showToast({ message: courseTitle + ' 生成完毕' });
     } catch (error) {

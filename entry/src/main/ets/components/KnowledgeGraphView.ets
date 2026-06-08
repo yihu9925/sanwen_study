@@ -40,7 +40,10 @@ export struct KnowledgeGraphView {
       .width('100%')
       .padding(16);
 
-      Stack() {
+      Stack()
+        .hitTestBehavior(HitTestMode.Block)
+        .width(this.canvasWidth)
+        .height(this.canvasHeight) {
         Canvas(this.context)
           .width(this.canvasWidth)
           .height(this.canvasHeight)
@@ -48,7 +51,6 @@ export struct KnowledgeGraphView {
           .borderRadius(8)
           .onReady(() => { this.drawGraph(); })
           .onTouch((event: TouchEvent) => {
-            event.stopPropagation();
             this.handleTouch(event);
           });
 
@@ -94,8 +96,6 @@ export struct KnowledgeGraphView {
         .alignItems(HorizontalAlign.Center)
         .position({ x: this.canvasWidth - 56, y: this.canvasHeight - 130 });
       }
-      .width(this.canvasWidth)
-      .height(this.canvasHeight)
 
       if (this.selectedNode) {
         this.NodeDetailCard();
