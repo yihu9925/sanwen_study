@@ -186,6 +186,10 @@ struct SettingsPage {
             .padding({ left: 16, top: 16, bottom: 8 });
 
           Column() {
+            this.SettingAction('\u5BFC\u51FA\u6570\u636E', () => {
+promptAction.showToast({ message: '\u6570\u636E\u5DF2\u5BFC\u51FA (JSON)' });
+            });
+            Divider();
             this.SettingAction('\u6E05\u9664\u7F13\u5B58', () => {
               promptAction.showToast({ message: '\u7F13\u5B58\u5DF2\u6E05\u9664' });
             });
