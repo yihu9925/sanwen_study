@@ -51,13 +51,13 @@ export struct KnowledgeGraphView {
 
         // 右侧缩放按钮
         Column() {
-          Button('+')
-            .width(36)
-            .height(36)
-            .borderRadius(18)
+          Button() {
+            Text('+').fontSize(22).fontWeight(FontWeight.Bold).fontColor(Color.White);
+          }
+            .width(40)
+            .height(40)
+            .borderRadius(20)
             .backgroundColor('#007DFF')
-            .fontSize(20)
-            .fontColor(Color.White)
             .onClick(() => {
               let newScale = this.zoomScale * 1.3;
               if (newScale > 3.0) { newScale = 3.0; }
@@ -66,18 +66,20 @@ export struct KnowledgeGraphView {
             });
 
           Text(Math.round(this.zoomScale * 100) + '%')
-            .fontSize(10)
-            .fontColor('#666666')
-            .margin({ top: 4, bottom: 4 })
+            .fontSize(11)
+            .fontColor('#007DFF')
+            .fontWeight(FontWeight.Bold)
+            .width(40)
+            .height(20)
             .textAlign(TextAlign.Center);
 
-          Button('-')
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .backgroundColor('#E5E5E5')
-            .fontSize(20)
-            .fontColor('#333333')
+          Button() {
+            Text('-').fontSize(22).fontWeight(FontWeight.Bold).fontColor('#333333');
+          }
+            .width(40)
+            .height(40)
+            .borderRadius(20)
+            .backgroundColor('#E0E0E0')
             .onClick(() => {
               let newScale = this.zoomScale * 0.7;
               if (newScale < 0.3) { newScale = 0.3; }
@@ -85,6 +87,8 @@ export struct KnowledgeGraphView {
               this.drawGraph();
             });
         }
+        .width(44)
+        .alignItems(HorizontalAlign.Center)
         .align(Alignment.BottomEnd)
         .margin({ right: 8, bottom: 8 });
       }

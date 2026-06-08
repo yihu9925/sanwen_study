@@ -9,11 +9,16 @@ import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct HomePage {
+  @StorageLink('themeMode') themeMode: string = 'auto';
   @State courses: Course[] = [];
   @State searchText: string = '';
   @State isLoading: boolean = false;
   @State pageState: 'loading' | 'content' | 'empty' | 'error' = 'loading';
   private userId: string = 'default_user';
+
+  get isDark(): boolean {
+    return this.themeMode === 'dark';
+  }
 
   aboutToAppear(): void {
     this.loadCourses();
@@ -82,7 +87,7 @@ export struct HomePage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor(this.isDark ? '#222222' : '#F5F5F5')
   }
 
   @Builder
@@ -131,7 +136,7 @@ export struct HomePage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(Color.White);
+    .backgroundColor(this.isDark ? '#333333' : Color.White);
   }
 
   @Builder

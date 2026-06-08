@@ -35,6 +35,8 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to initialize database. Cause: %{public}s', JSON.stringify(err));
     }
     
+    // 数据库就绪后加载主页面
+    this.loadMainPage();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 
@@ -42,13 +44,25 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
-  onWindowStageCreate(windowStage: window.WindowStage): void {
-    // Main window is created, set main page for this ability
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+  private appWindowStage: window.WindowStage | null = null;
 
-    windowStage.loadContent('pages/Index', (err) => {
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+    this.appWindowStage = windowStage;
+    // loadContent is now triggered from onCreate after DB init completes
+  }
+
+  private loadMainPage(): void {
+    if (!this.appWindowStage) {
+      return;
+    }
+    this.appWindowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
-        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'testTag', 'Failed to load content. Cause: %{public}s', JSON.stringify(err));
+        // 重试一次
+        setTimeout(() => {
+          this.loadMainPage();
+        }, 500);
         return;
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
