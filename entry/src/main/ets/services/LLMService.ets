@@ -31,17 +31,19 @@ export class LLMService {
       throw new Error('NO_API_KEY');
     }
 
-    const requestBody: Record<string, Object> = {
-      model: config.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-    };
+    const systemMsg: ChatMessage = { role: 'system', content: systemPrompt };
+    const userMsg: ChatMessage = { role: 'user', content: userPrompt };
+    const messages: ChatMessage[] = [systemMsg, userMsg];
+
+    const requestBody: Record<string, Object> = {};
+    requestBody['model'] = config.model;
+    requestBody['messages'] = messages;
+    requestBody['temperature'] = 0.3;
 
     if (responseFormat === 'json') {
-      requestBody['response_format'] = { type: 'json_object' };
+      const rf: Record<string, string> = {};
+      rf['type'] = 'json_object';
+      requestBody['response_format'] = rf;
     }
 
     const httpRequest = http.createHttp();
@@ -51,11 +53,11 @@ export class LLMService {
         {
           method: http.RequestMethod.POST,
           header: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + config.apiKey
-          },
-          extraData: JSON.stringify(requestBody),
-          expectDataType: http.HttpDataType.OBJECT,
+            'Content-Type': 'application/json' as string,
+            'Authorization': ('Bearer ' + config.apiKey) as string
+          } ,
+          extraData: JSON.stringify(requestBody) as string,
+          expectDataType: http.HttpDataType.OBJECT ,
         }
       );
 
