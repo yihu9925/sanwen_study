@@ -1,0 +1,9 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/CourseDetailPage",
+    "pages/AssessmentDetailPage",
+    "pages/ArchiveManagementPage",
+    "pages/SettingsPage"
+  ]
+}

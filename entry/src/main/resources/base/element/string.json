@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "三问高效学习机"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "三问高效学习机主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "三问高效学习机"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "需要网络权限以访问AI服务和获取学习资料"
+    }
+  ]
+}
