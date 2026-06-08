@@ -1,6 +1,6 @@
-// 设置页 - 含AI API配置
+// 设置页 - 含AI API配置 + 暗黑模式
 import { AppRouter } from '../AppRouter';
-import { promptAction } from '@kit.ArkUI';
+import { promptAction, AppStorage } from '@kit.ArkUI';
 import { ConfigService } from '../services/ConfigService';
 
 @Entry
@@ -13,24 +13,33 @@ struct SettingsPage {
   @State model: string = 'gpt-4';
   @State showApiInput: boolean = false;
   @State tempKey: string = '';
+  @StorageLink('themeMode') themeMode: string = 'auto';
 
   aboutToAppear(): void {
     this.loadConfig();
+    this.isDarkMode = this.themeMode === 'dark';
   }
 
   async loadConfig(): Promise<void> {
     const config = await ConfigService.getLLMConfig();
-    this.apiKey = config.apiKey ? '...' + config.apiKey.substring(config.apiKey.length - 4) : 'unset';
+    this.apiKey = config.apiKey ? '...' + config.apiKey.substring(config.apiKey.length - 4) : '\u672A\u8BBE\u7F6E';
     this.apiBase = config.apiBase;
     this.model = config.model;
+  }
+
+  setDarkMode(enabled: boolean): void {
+    this.isDarkMode = enabled;
+    this.themeMode = enabled ? 'dark' : 'light';
+    AppStorage.set<string>('themeMode', this.themeMode);
+    promptAction.showToast({ message: '深色模式已' + (enabled ? '开启' : '关闭') });
   }
 
   build() {
     Column() {
       Row() {
-        Button('Back')
+        Button('\u8FD4\u56DE')
           .onClick(() => { AppRouter.back(); });
-        Text('Settings')
+        Text('\u8BBE\u7F6E')
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .layoutWeight(1)
@@ -39,12 +48,12 @@ struct SettingsPage {
       }
       .width('100%')
       .padding(16)
-      .backgroundColor(Color.White);
+      .backgroundColor(this.isDarkMode ? '#333333' : Color.White);
 
       Scroll() {
         Column() {
-          // AI API Config
-          Text('AI Configuration')
+          // AI\u914D\u7F6E\u533A\u5757
+          Text('AI \u914D\u7F6E')
             .fontSize(14)
             .fontColor('#666666')
             .width('100%')
@@ -68,18 +77,18 @@ struct SettingsPage {
 
             if (this.showApiInput) {
               Row() {
-                TextInput({ placeholder: 'Enter new API Key...', text: this.tempKey })
+                TextInput({ placeholder: '\u8F93\u5165\u65B0\u7684API Key...', text: this.tempKey })
                   .layoutWeight(1)
                   .type(InputType.Password)
                   .onChange((val: string) => { this.tempKey = val; });
-                Button('Save')
+                Button('\u4FDD\u5B58')
                   .fontSize(14)
                   .onClick(async () => {
                     if (this.tempKey.length > 0) {
                       await ConfigService.saveApiKey(this.tempKey);
                       this.apiKey = '...' + this.tempKey.substring(this.tempKey.length - 4);
                       this.showApiInput = false;
-                      promptAction.showToast({ message: 'API Key saved' });
+                      promptAction.showToast({ message: 'API Key \u5DF2\u4FDD\u5B58' });
                     }
                   });
               }
@@ -90,7 +99,7 @@ struct SettingsPage {
             Divider();
 
             Row() {
-              Text('API Base URL')
+              Text('API \u5730\u5740')
                 .fontSize(16)
                 .layoutWeight(1);
               TextInput({ placeholder: this.apiBase, text: this.apiBase })
@@ -109,7 +118,7 @@ struct SettingsPage {
             Divider();
 
             Row() {
-              Text('Model')
+              Text('\u6A21\u578B\u540D\u79F0')
                 .fontSize(16)
                 .layoutWeight(1);
               TextInput({ placeholder: this.model, text: this.model })
@@ -126,58 +135,57 @@ struct SettingsPage {
             .padding(16);
           }
           .width('100%')
-          .backgroundColor(Color.White);
+          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
 
-          // Appearance
-          Text('Appearance')
+          // \u5916\u89C2
+          Text('\u5916\u89C2')
             .fontSize(14)
             .fontColor('#666666')
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
           Column() {
-            this.SettingItem('Dark Mode', this.isDarkMode, (value: boolean) => {
-              this.isDarkMode = value;
-              promptAction.showToast({ message: 'Dark mode ' + (value ? 'on' : 'off') });
+            this.SettingItem('\u6DF1\u8272\u6A21\u5F0F', this.isDarkMode, (value: boolean) => {
+              this.setDarkMode(value);
             });
           }
           .width('100%')
-          .backgroundColor(Color.White);
+          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
 
-          // Notifications
-          Text('Notifications')
+          // \u901A\u77E5
+          Text('\u901A\u77E5')
             .fontSize(14)
             .fontColor('#666666')
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
           Column() {
-            this.SettingItem('Notifications', this.enableNotification, (value: boolean) => {
+            this.SettingItem('\u6D88\u606F\u901A\u77E5', this.enableNotification, (value: boolean) => {
               this.enableNotification = value;
-              promptAction.showToast({ message: 'Notifications ' + (value ? 'on' : 'off') });
+              promptAction.showToast({ message: '\u6D88\u606F\u901A\u77E5\u5DF2' + (value ? '\u5F00\u542F' : '\u5173\u95ED') });
             });
           }
           .width('100%')
-          .backgroundColor(Color.White);
+          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
 
-          // Other
-          Text('Other')
+          // \u5176\u4ED6
+          Text('\u5176\u4ED6')
             .fontSize(14)
             .fontColor('#666666')
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
           Column() {
-            this.SettingAction('Clear Cache', () => {
-              promptAction.showToast({ message: 'Cache cleared' });
+            this.SettingAction('\u6E05\u9664\u7F13\u5B58', () => {
+              promptAction.showToast({ message: '\u7F13\u5B58\u5DF2\u6E05\u9664' });
             });
             Divider();
-            this.SettingAction('About', () => {
-              promptAction.showToast({ message: 'Three-Question Learning Machine v1.0' });
+            this.SettingAction('\u5173\u4E8E', () => {
+              promptAction.showToast({ message: '\u4E09\u95EE\u9AD8\u6548\u5B66\u4E60\u673A v1.0' });
             });
           }
           .width('100%')
-          .backgroundColor(Color.White);
+          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
         }
         .width('100%');
       }
@@ -185,13 +193,15 @@ struct SettingsPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5');
+    .backgroundColor(this.isDarkMode ? '#222222' : '#F5F5F5');
   }
 
   @Builder
   SettingItem(title: string, value: boolean, onChange: (value: boolean) => void): void {
     Row() {
-      Text(title).fontSize(16);
+      Text(title)
+        .fontSize(16)
+        .fontColor(this.isDarkMode ? '#FFFFFF' : '#000000');
       Toggle({ type: ToggleType.Switch, isOn: value }).onChange(onChange);
     }
     .width('100%')
@@ -202,7 +212,10 @@ struct SettingsPage {
   @Builder
   SettingAction(title: string, onClick: () => void): void {
     Row() {
-      Text(title).fontSize(16).layoutWeight(1);
+      Text(title)
+        .fontSize(16)
+        .fontColor(this.isDarkMode ? '#FFFFFF' : '#000000')
+        .layoutWeight(1);
       Text('>').fontSize(20).fontColor('#CCCCCC');
     }
     .width('100%')

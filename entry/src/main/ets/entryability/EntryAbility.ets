@@ -1,6 +1,6 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window } from '@kit.ArkUI';
+import { window, AppStorage } from '@kit.ArkUI';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
 import { ConfigService } from '../services/ConfigService';
 
@@ -8,8 +8,19 @@ const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
+    // 初始化全局状态
+    if (!AppStorage.has('themeMode')) {
+      AppStorage.set<string>('themeMode', 'auto');
+    }
+    const savedTheme: string = AppStorage.get<string>('themeMode') || 'auto';
     try {
-      this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+      if (savedTheme === 'dark') {
+        this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
+      } else if (savedTheme === 'light') {
+        this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
+      } else {
+        this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+      }
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }

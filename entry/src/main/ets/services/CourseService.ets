@@ -65,7 +65,7 @@ export class CourseService {
         progressQ2: resultSet.getLong(7),
         progressQ3: resultSet.getLong(8),
         progressPercent: resultSet.getLong(9),
-        radarData: getDefaultRadarData(),
+        radarData: CourseService.parseRadarData(resultSet.getString(10)),
         createdAt: resultSet.getString(11),
         updatedAt: resultSet.getString(12),
         lastAccessedAt: resultSet.getString(13)
@@ -98,7 +98,7 @@ export class CourseService {
         progressQ2: resultSet.getLong(7),
         progressQ3: resultSet.getLong(8),
         progressPercent: resultSet.getLong(9),
-        radarData: getDefaultRadarData(),
+        radarData: CourseService.parseRadarData(resultSet.getString(10)),
         createdAt: resultSet.getString(11),
         updatedAt: resultSet.getString(12),
         lastAccessedAt: resultSet.getString(13)
@@ -168,6 +168,26 @@ export class CourseService {
       await store.update(updateValues, predicates);
     } catch (error) {
       console.error('Content generation failed:', JSON.stringify(error));
+    }
+  }
+
+  // 解析雷达数据JSON
+  static parseRadarData(jsonStr: string): RadarData {
+    if (!jsonStr || jsonStr === '{}' || jsonStr.length === 0) {
+      return getDefaultRadarData();
+    }
+    try {
+      const parsed = JSON.parse(jsonStr) as Record<string, number>;
+      return {
+        remember: parsed['remember'] || 0,
+        understand: parsed['understand'] || 0,
+        apply: parsed['apply'] || 0,
+        analyze: parsed['analyze'] || 0,
+        evaluate: parsed['evaluate'] || 0,
+        create: parsed['create'] || 0
+      };
+    } catch (e) {
+      return getDefaultRadarData();
     }
   }
 }

@@ -40,13 +40,56 @@ export struct KnowledgeGraphView {
       .width('100%')
       .padding(16);
 
-      Canvas(this.context)
-        .width(this.canvasWidth)
-        .height(this.canvasHeight)
-        .backgroundColor('#FAFAFA')
-        .borderRadius(8)
-        .onReady(() => { this.drawGraph(); })
-        .onTouch((event: TouchEvent) => { this.handleTouch(event); });
+      Stack() {
+        Canvas(this.context)
+          .width(this.canvasWidth)
+          .height(this.canvasHeight)
+          .backgroundColor('#FAFAFA')
+          .borderRadius(8)
+          .onReady(() => { this.drawGraph(); })
+          .onTouch((event: TouchEvent) => { this.handleTouch(event); });
+
+        // 右侧缩放按钮
+        Column() {
+          Button('+')
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('#007DFF')
+            .fontSize(20)
+            .fontColor(Color.White)
+            .onClick(() => {
+              let newScale = this.zoomScale * 1.3;
+              if (newScale > 3.0) { newScale = 3.0; }
+              this.zoomScale = newScale;
+              this.drawGraph();
+            });
+
+          Text(Math.round(this.zoomScale * 100) + '%')
+            .fontSize(10)
+            .fontColor('#666666')
+            .margin({ top: 4, bottom: 4 })
+            .textAlign(TextAlign.Center);
+
+          Button('-')
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('#E5E5E5')
+            .fontSize(20)
+            .fontColor('#333333')
+            .onClick(() => {
+              let newScale = this.zoomScale * 0.7;
+              if (newScale < 0.3) { newScale = 0.3; }
+              this.zoomScale = newScale;
+              this.drawGraph();
+            });
+        }
+        .align(Alignment.BottomEnd)
+        .margin({ right: 8, bottom: 8 });
+      }
+      .width(this.canvasWidth)
+      .height(this.canvasHeight)
 
       if (this.selectedNode) {
         this.NodeDetailCard();
