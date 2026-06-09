@@ -3,11 +3,10 @@ import { KnowledgeBaseService, DocWithCourse } from '../services/KnowledgeBaseSe
 import { CourseService } from '../services/CourseService';
 import { Course } from '../models/Course';
 import { getTimeAgo } from '../utils/DateUtils';
-import { parseParagraphs, parseContentSegments, ContentSegment } from '../utils/ContentUtils';
+import { parseContentSegments, ContentSegment } from '../utils/ContentUtils';
 
 @Component
 export struct KnowledgeHub {
-  @Prop @Watch('onRefreshKeyChange') refreshKey: number = 0;
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
 
@@ -28,7 +27,7 @@ export struct KnowledgeHub {
     this.loadData();
   }
 
-  onRefreshKeyChange(): void {
+  onPageShow(): void {
     this.loadData();
   }
 

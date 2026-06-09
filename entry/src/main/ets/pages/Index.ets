@@ -7,13 +7,7 @@ import { KnowledgeHub } from './KnowledgeHub';
 @Component
 struct Index {
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
-  @StorageLink('knowledgeHubRefreshKey') knowledgeHubRefreshKey: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
-
-  onBackPress(): boolean {
-    this.knowledgeHubRefreshKey++;
-    return false;
-  }
 
   build() {
     Tabs({ barPosition: BarPosition.End, index: this.activeTabIndex }) {
@@ -23,7 +17,7 @@ struct Index {
       .tabBar('\u9996\u9875');
 
       TabContent() {
-        KnowledgeHub({ refreshKey: this.knowledgeHubRefreshKey });
+        KnowledgeHub();
       }
       .tabBar('\u77E5\u8BC6\u5E93');
 
