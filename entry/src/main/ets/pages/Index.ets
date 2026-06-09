@@ -10,6 +10,11 @@ struct Index {
   @StorageLink('knowledgeHubRefreshKey') knowledgeHubRefreshKey: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
 
+  onBackPress(): boolean {
+    this.knowledgeHubRefreshKey++;
+    return false;
+  }
+
   build() {
     Tabs({ barPosition: BarPosition.End, index: this.activeTabIndex }) {
       TabContent() {

@@ -183,7 +183,7 @@ export class KnowledgeBaseService {
     const sql: string = `
       SELECT d.id, d.course_id, d.source_type, d.title, d.content,
              d.file_path, d.file_type, d.keywords, d.uploaded_at,
-             c.title as course_title
+             c.title as course_title, c.domain
       FROM document d
       JOIN course c ON d.course_id = c.id
       WHERE c.user_id = ?
@@ -203,7 +203,8 @@ export class KnowledgeBaseService {
         fileType: resultSet.getString(6) as DocumentFileType || 'txt',
         keywords: JSON.parse(resultSet.getString(7) || '[]'),
         uploadedAt: resultSet.getString(8) || '',
-        courseTitle: resultSet.getString(9) || ''
+        courseTitle: resultSet.getString(9) || '',
+        domain: resultSet.getString(10) || ''
       });
     }
     resultSet.close();
@@ -223,4 +224,5 @@ export interface DocWithCourse {
   keywords: string[];
   uploadedAt: string;
   courseTitle: string;
+  domain: string;
 }

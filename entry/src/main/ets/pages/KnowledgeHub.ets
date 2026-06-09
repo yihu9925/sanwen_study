@@ -6,13 +6,16 @@ import { getTimeAgo } from '../utils/DateUtils';
 export struct KnowledgeHub {
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('knowledgeHubRefreshKey') knowledgeHubRefreshKey: number = 0;
 
   private userId: string = 'default_user';
+  private lastRefreshKey: number = 0;
 
   @State searchText: string = '';
   @State activeFilter: string = 'all';
   @State allDocuments: DocWithCourse[] = [];
   @State filteredDocs: DocWithCourse[] = [];
+  @State domains: string[] = [];
   @State selectedDoc: DocWithCourse | null = null;
   @State showDocSheet: boolean = false;
   @State isLoading: boolean = true;
@@ -27,6 +30,13 @@ export struct KnowledgeHub {
     this.errorMsg = '';
     try {
       this.allDocuments = await KnowledgeBaseService.getDocumentsByUser(this.userId);
+      const domainSet: Set<string> = new Set<string>();
+      for (const doc of this.allDocuments) {
+        if (doc.domain) {
+          domainSet.add(doc.domain);
+        }
+      }
+      this.domains = Array.from(domainSet);
       this.applyFilters();
     } catch (e) {
       this.errorMsg = '\u52A0\u8F7D\u5931\u8D25';
@@ -48,7 +58,7 @@ export struct KnowledgeHub {
 
     if (this.activeFilter !== 'all') {
       result = result.filter((doc: DocWithCourse): boolean =>
-        doc.sourceType === this.activeFilter
+        doc.domain === this.activeFilter
       );
     }
 
@@ -95,11 +105,12 @@ export struct KnowledgeHub {
         .borderRadius(20)
         .onChange((val: string) => this.onSearchChange(val));
 
-      // 筛选栏 - 使用内联 Button 以确保点击事件可靠
+      // 筛选栏 - 按课程分类
       Row() {
         this.FilterBtn('\u5168\u90E8', 'all', this.activeFilter === 'all');
-        this.FilterBtn('AI\u8D44\u6599', 'ai', this.activeFilter === 'ai');
-        this.FilterBtn('\u7528\u6237\u4E0A\u4F20', 'user', this.activeFilter === 'user');
+        ForEach(this.domains, (domain: string) => {
+          this.FilterBtn(domain, domain, this.activeFilter === domain);
+        });
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 4 });
@@ -255,13 +266,11 @@ export struct KnowledgeHub {
                   .margin({ top: 4 });
 
                 Row() {
-                  Text(doc.sourceType === 'ai' ? 'AI\u8D44\u6599' : '\u7528\u6237\u4E0A\u4F20')
+                  Text(doc.domain || '\u672A\u5206\u7C7B')
                     .fontSize(11)
-                    .fontColor(doc.sourceType === 'ai' ? '#007DFF' : '#52C41A')
+                    .fontColor('#007DFF')
                     .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                    .backgroundColor(doc.sourceType === 'ai' ?
-                      (this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF') :
-                      (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED'))
+                    .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
                     .borderRadius(4);
 
                   Text(getTimeAgo(doc.uploadedAt))
@@ -303,13 +312,11 @@ export struct KnowledgeHub {
               .lineHeight(28);
 
             Row() {
-              Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u8D44\u6599' : '\u7528\u6237\u4E0A\u4F20')
+              Text(this.selectedDoc.domain || '\u672A\u5206\u7C7B')
                 .fontSize(12)
-                .fontColor(this.selectedDoc.sourceType === 'ai' ? '#007DFF' : '#52C41A')
+                .fontColor('#007DFF')
                 .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .backgroundColor(this.selectedDoc.sourceType === 'ai' ?
-                  (this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF') :
-                  (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED'))
+                .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
                 .borderRadius(4);
 
               Text('\u8BFE\u7A0B\uFF1A' + this.selectedDoc.courseTitle)
