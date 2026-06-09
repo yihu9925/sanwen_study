@@ -3,7 +3,7 @@ import { KnowledgeBaseService, DocWithCourse } from '../services/KnowledgeBaseSe
 import { CourseService } from '../services/CourseService';
 import { Course } from '../models/Course';
 import { getTimeAgo } from '../utils/DateUtils';
-import { parseParagraphs } from '../utils/ContentUtils';
+import { parseParagraphs, parseContentSegments, ContentSegment } from '../utils/ContentUtils';
 
 @Component
 export struct KnowledgeHub {
@@ -20,7 +20,7 @@ export struct KnowledgeHub {
   @State domains: string[] = [];
   @State selectedDoc: DocWithCourse | null = null;
   @State showDocSheet: boolean = false;
-  @State contentParagraphs: string[] = [];
+  @State contentSegments: ContentSegment[] = [];
   @State isLoading: boolean = true;
   @State errorMsg: string = '';
 
@@ -81,7 +81,7 @@ export struct KnowledgeHub {
 
   openDocDetail(doc: DocWithCourse): void {
     this.selectedDoc = doc;
-    this.contentParagraphs = parseParagraphs(doc.content || '\u6682\u65E0\u5185\u5BB9');
+    this.contentSegments = parseContentSegments(doc.content || '');
     this.showDocSheet = true;
   }
 
@@ -384,15 +384,38 @@ export struct KnowledgeHub {
 
             Divider().margin({ top: 16, bottom: 16 });
 
-            ForEach(this.contentParagraphs, (para: string) => {
-              Text(para)
-                .fontSize(15)
-                .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-                .lineHeight(26)
+            ForEach(this.contentSegments, (seg: ContentSegment) => {
+              if (seg.type === 'code') {
+                Column() {
+                  Text(seg.content)
+                    .fontSize(14)
+                    .fontFamily('Courier New')
+                    .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+                    .lineHeight(22)
+                    .width('100%');
+                }
                 .width('100%')
-                .textIndent(32)
+                .padding(12)
+                .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+                .borderRadius(8)
                 .margin({ bottom: 12 });
+              } else {
+                Text(seg.content)
+                  .fontSize(15)
+                  .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+                  .lineHeight(26)
+                  .width('100%')
+                  .textIndent(32)
+                  .margin({ bottom: 12 });
+              }
             });
+
+            if (this.contentSegments.length === 0) {
+              Text('\u6682\u65E0\u5185\u5BB9')
+                .fontSize(15)
+                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .width('100%');
+            }
           }
           .width('100%')
           .padding(20);

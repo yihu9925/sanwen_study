@@ -18,7 +18,7 @@ import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
 import { getTimeAgo } from '../utils/DateUtils';
-import { parseParagraphs } from '../utils/ContentUtils';
+import { parseParagraphs, parseContentSegments, ContentSegment } from '../utils/ContentUtils';
 
 @Entry
 @Component
@@ -40,7 +40,7 @@ struct CourseDetailPage {
   @State selectedGraphNodeId: string = ''; // 选中聚焦的图节点ID
   @State selectedDoc: Document | null = null;
   @State showDocSheet: boolean = false;
-  @State docParagraphs: string[] = [];
+  @State docSegments: ContentSegment[] = [];
   private loadedOnce: boolean = false;
 
   aboutToAppear(): void {
@@ -683,7 +683,7 @@ struct CourseDetailPage {
                 .borderRadius(8)
                 .onClick(() => {
                   this.selectedDoc = this.documents[index];
-                  this.docParagraphs = parseParagraphs(this.documents[index].content || '\u6682\u65E0\u5185\u5BB9');
+                  this.docSegments = parseContentSegments(this.documents[index].content || '');
                   this.showDocSheet = true;
                 });
               }
@@ -1051,15 +1051,38 @@ struct CourseDetailPage {
 
             Divider().margin({ top: 16, bottom: 16 });
 
-            ForEach(this.docParagraphs, (para: string) => {
-              Text(para)
-                .fontSize(15)
-                .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-                .lineHeight(26)
+            ForEach(this.docSegments, (seg: ContentSegment) => {
+              if (seg.type === 'code') {
+                Column() {
+                  Text(seg.content)
+                    .fontSize(14)
+                    .fontFamily('Courier New')
+                    .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+                    .lineHeight(22)
+                    .width('100%');
+                }
                 .width('100%')
-                .textIndent(32)
+                .padding(12)
+                .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+                .borderRadius(8)
                 .margin({ bottom: 12 });
+              } else {
+                Text(seg.content)
+                  .fontSize(15)
+                  .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+                  .lineHeight(26)
+                  .width('100%')
+                  .textIndent(32)
+                  .margin({ bottom: 12 });
+              }
             });
+
+            if (this.docSegments.length === 0) {
+              Text('\u6682\u65E0\u5185\u5BB9')
+                .fontSize(15)
+                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .width('100%');
+            }
           }
           .width('100%')
           .padding(20);

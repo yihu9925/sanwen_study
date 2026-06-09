@@ -574,7 +574,8 @@ export class LLMService {
         '2. \u5185\u5BB9\u5FC5\u987B\u80FD\u652F\u6491\u540E\u7EED\u7684\u77E5\u8BC6\u56FE\u8C31\u6784\u5EFA\u3001\u5B66\u672F\u4E89\u8BAE\u70B9\u5206\u6790\u548C\u6D4B\u8BC4\u9898\u751F\u6210\n' +
         '3. \u4F7F\u7528\u4E2D\u6587\n' +
         '4. content\u4E2D\u7528\\n\u6362\u884C\u7B26\u5206\u9694\u6BB5\u843D\uFF08\u6BCF\u6BB5\u843D\u4E4B\u95F4\u4E00\u4E2A\\n\u5373\u53EF\uFF09\n' +
-        '5. \u8FD4\u56DE JSON \u6570\u7EC4\u683C\u5F0F\uFF1A[{"title": "...", "content": "...", "keywords": ["...", "..."]}]\n\n' +
+        '5. \u4EE3\u7801\u5FC5\u987B\u7528[CODE]\u548C[/CODE]\u6807\u8BB0\u5305\u88F9\uFF0C\u4FDD\u6301\u7F29\u8FDB\u548C\u6392\u7248\n' +
+        '6. \u8FD4\u56DE JSON \u6570\u7EC4\u683C\u5F0F\uFF1A[{"title": "...", "content": "...", "keywords": ["...", "..."]}]\n\n' +
         '\u95EE\u9898\uFF1A' + truncatedQuestion;
 
       const result: string = await LLMService.callLLM(
