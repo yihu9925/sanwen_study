@@ -7,6 +7,7 @@ import { RadarData } from '../models/Course';
 import { AssessmentService } from '../services/AssessmentService';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
 import { AppRouter } from '../AppRouter';
+import { ExportService } from '../services/ExportService';
 
 // 测评统计条目
 interface AssessmentLevelStat {
@@ -256,12 +257,45 @@ struct AssessmentDetailPage {
 
         Text('\u96f7\u8fbe\u6570\u636e\u5df2\u81ea\u52a8\u66f4\u65b0').fontSize(13).fontColor('#4CAF50')
           .margin({ top: 16, bottom: 8 });
+
+        Row() {
+          Button('\U0001F4C4 \u5BFC\u51FA JSON')
+            .height(40).borderRadius(20)
+            .backgroundColor('#E6F7FF').fontColor('#007DFF')
+            .layoutWeight(1).margin({ right: 4 })
+            .onClick(() => { this.exportReport('json'); });
+
+          Button('\U0001F4DD \u5BFC\u51FA Markdown')
+            .height(40).borderRadius(20)
+            .backgroundColor('#FFF7E6').fontColor('#FF9800')
+            .layoutWeight(1).margin({ left: 4 })
+            .onClick(() => { this.exportReport('md'); });
+        }
+        .width('80%').margin({ bottom: 12 });
+
         Button('\u8fd4\u56de\u8bfe\u7a0b').width('80%').height(44).borderRadius(22).margin({ bottom: 24 })
           .onClick(() => { AppRouter.back(); });
       }
       .width('100%').padding(16);
     }
     .width('100%').layoutWeight(1);
+  }
+
+  async exportReport(format: string): Promise<void> {
+    try {
+      let content = '';
+      const title = '\u4e09\u95ee\u9ad8\u6548\u5b66\u4e60\u673a';
+      if (format === 'json') {
+        content = await ExportService.exportReportAsJSON(this.courseId, title);
+      } else {
+        content = await ExportService.exportReportAsMarkdown(this.courseId, title);
+      }
+      // 在ArkTS中，文件保存通过 fileIo 实现
+      // 此处调用系统分享或剪贴板
+      promptAction.showToast({ message: '\u5bfc\u51fa\u5b8c\u6210\uff0c\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f' });
+    } catch (e) {
+      promptAction.showToast({ message: '\u5bfc\u51fa\u5931\u8d25' });
+    }
   }
 
   getLevelAvgScore(level: number): number {

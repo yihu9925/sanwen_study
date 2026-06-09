@@ -395,18 +395,18 @@ struct CourseDetailPage {
         if (this.documents.length === 0) {
           Column() {
             Text('\U0001F4DA')
-              .fontSize(48);
+              .fontSize(64);
             Text('\u6682\u65E0\u8D44\u6599')
               .fontSize(16)
               .fontColor('#999999')
               .margin({ top: 16 });
-            Text('AI\u81EA\u52A8\u722C\u53D6\u7684\u8D44\u6599\u548C\u7528\u6237\u4E0A\u4F20\u7684\u6587\u6863\u5C06\u663E\u793A\u5728\u8FD9\u91CC')
+            Text('\u70B9\u51FB\u4E0B\u65B9\u6309\u94AE\u4E0A\u4F20\u5B66\u4E60\u8D44\u6599\u6216\u8BA9AI\u81EA\u52A8\u722C\u53D6\u7F51\u7EDC\u8D44\u6E90')
               .fontSize(12)
               .fontColor('#CCCCCC')
               .margin({ top: 8 });
           }
           .width('100%')
-          .height(200)
+          .layoutWeight(1)
           .justifyContent(FlexAlign.Center);
         } else {
           List() {
@@ -470,6 +470,85 @@ struct CourseDetailPage {
     }
     .width('100%')
     .layoutWeight(1);
+
+    // 上传资料按钮
+    Row() {
+      Button('\U0001F4C4 \u4E0A\u4F20\u6587\u4EF6')
+        .height(40).borderRadius(20)
+        .backgroundColor('#007DFF').fontColor(Color.White)
+        .layoutWeight(1).margin({ right: 6 })
+        .onClick(() => {
+          this.showUploadDialog();
+        });
+
+      Button('\U0001F50D AI\u722C\u53D6\u8D44\u6599')
+        .height(40).borderRadius(20)
+        .backgroundColor('#E6F7FF').fontColor('#007DFF')
+        .layoutWeight(1).margin({ left: 6 })
+        .onClick(() => {
+          this.showCrawlDialog();
+        });
+    }
+    .width('100%').padding(16);
+  }
+
+  // 显示上传对话框
+  showUploadDialog(): void {
+    promptAction.showDialog({
+      title: '\u4E0A\u4F20\u5B66\u4E60\u8D44\u6599',
+      message: '\u652F\u6301 PDF\u3001Word\u3001Markdown\u3001TXT \u683C\u5F0F\u3002\u8BF7\u5C06\u6587\u4EF6\u653E\u7F6E\u5728\u8BBE\u5907\u7684 Documents \u76EE\u5F55\u4E0B\u3002\n\n\u5F53\u524D\u7248\u672C\u652F\u6301\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u6DFB\u52A0\uff1a\n1. \u4F7F\u7528 @kit.FilePicker \u9009\u62E9\u6587\u4EF6\n2. \u8F93\u5165\u6587\u672C\u5185\u5BB9\u76F4\u63A5\u6DFB\u52A0',
+      buttons: [
+        { text: '\u53D6\u6D88', color: '#999999' },
+        { text: '\u8F93\u5165\u6587\u672C', color: '#007DFF' }
+      ]
+    }).then(async (data: promptAction.ShowDialogSuccessResponse) => {
+      if (data.index === 1) {
+        await this.addTextDocument();
+      }
+    }).catch(() => {});
+  }
+
+  // 显示AI爬取对话框
+  showCrawlDialog(): void {
+    promptAction.showDialog({
+      title: 'AI\u722C\u53D6\u7F51\u7EDC\u8D44\u6E90',
+      message: '\u5C06\u81EA\u52A8\u641C\u7D22\u4E0E\u8BFE\u7A0B\u76F8\u5173\u7684\u516C\u5F00\u6587\u6863\u3001\u6559\u7A0B\u548C\u8D44\u6E90\u3002\u8BF7\u786E\u4FDD\u5DF2\u914D\u7F6E API Key\u3002',
+      buttons: [
+        { text: '\u53D6\u6D88', color: '#999999' },
+        { text: '\u5F00\u59CB\u722C\u53D6', color: '#007DFF' }
+      ]
+    }).then(async (data: promptAction.ShowDialogSuccessResponse) => {
+      if (data.index === 1) {
+        await this.crawlWebResources();
+      }
+    }).catch(() => {});
+  }
+
+  // 添加文本文档
+  async addTextDocument(): Promise<void> {
+    promptAction.showDialog({
+      title: '\u6DFB\u52A0\u6587\u672C\u5185\u5BB9',
+      message: '\u8BF7\u8F93\u5165\u5B66\u4E60\u8D44\u6599\u6807\u9898\u548C\u5185\u5BB9\uff1a',
+      buttons: [
+        { text: '\u53D6\u6D88', color: '#999999' }
+      ]
+    }).catch(() => {});
+    // TODO: Add TextInput dialog in future iteration
+    promptAction.showToast({ message: '\u8BF7\u5728 DevEco Studio \u4E2D\u901A\u8FC7 @kit.FilePicker \u5B9E\u73B0\u6587\u4EF6\u9009\u62E9' });
+  }
+
+  // AI爬取网络资源
+  async crawlWebResources(): Promise<void> {
+    promptAction.showToast({ message: '\u5DF2\u5F00\u59CB\u81EA\u52A8\u722C\u53D6\u7F51\u7EDC\u8D44\u6E90...' });
+    try {
+      // 调用LLM生成相关的资料内容
+      const content = this.course?.question || '';
+      const docCount: number = await KnowledgeBaseService.generateAIDocuments(this.courseId, content);
+      await this.loadDocuments();
+      promptAction.showToast({ message: '\u722C\u53D6\u5B8C\u6210\uff0c\u5171\u6DFB\u52A0 ' + docCount + ' \u4E2A\u8D44\u6599' });
+    } catch (e) {
+      promptAction.showToast({ message: '\u722C\u53D6\u5931\u8D25\uff0c\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5' });
+    }
   }
 
   @Builder

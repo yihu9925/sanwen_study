@@ -1,7 +1,7 @@
 // 测评服务（自由答题模式）
 // 核心变更：选择题对比 → 自由输入 + LLM评判
 import { relationalStore } from '@kit.ArkData';
-import { Question, BloomLevel, AiEvaluation } from '../models/Question';
+import { Question, BloomLevel, AiEvaluation, LearningRecord } from '../models/Question';
 import { RadarData } from '../models/Course';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { LLMService } from './LLMService';
@@ -117,6 +117,47 @@ export class AssessmentService {
 
     const result: SubmitFreeAnswerResult = { isCorrect, score: evaluation.score, evaluation };
     return result;
+  }
+
+  // 获取学习记录
+  static async getLearningRecords(courseId: string): Promise<LearningRecord[]> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('learning_record');
+    predicates.equalTo('course_id', courseId);
+    const rs = await store.query(predicates);
+    const records: LearningRecord[] = [];
+    while (rs.goToNextRow()) {
+      const evalStr = rs.getString(6); // ai_evaluation column
+      let evaluation: AiEvaluation = { score: 0, comment: '', strengths: [], weaknesses: [], improvement: '' };
+      try {
+        if (evalStr && evalStr !== '') {
+          const parsed = JSON.parse(evalStr) as Record<string, Object>;
+          evaluation = {
+            score: (parsed['score'] as number) || 0,
+            comment: (parsed['comment'] as string) || '',
+            strengths: (parsed['strengths'] as string[]) || [],
+            weaknesses: (parsed['weaknesses'] as string[]) || [],
+            improvement: (parsed['improvement'] as string) || ''
+          };
+        }
+      } catch (e) {
+        // parse failed, use default
+      }
+      records.push({
+        id: rs.getString(0),
+        userId: rs.getString(1),
+        courseId: rs.getString(2),
+        questionId: rs.getString(3),
+        bloomLevel: rs.getLong(4) as BloomLevel,
+        userAnswerText: rs.getString(6) || '',
+        aiEvaluation: evaluation,
+        isCorrect: rs.getLong(7) === 1,
+        score: rs.getLong(8),
+        answeredAt: rs.getString(10)
+      });
+    }
+    rs.close();
+    return records;
   }
 
   // 更新雷达数据（基于测评结果）

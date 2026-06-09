@@ -133,4 +133,36 @@ export class KnowledgeBaseService {
     resultSet.close();
     return documents;
   }
+
+  // AI生成模拟资料（替代联网爬取）
+  static async generateAIDocuments(courseId: string, content: string): Promise<number> {
+    const store = RelationalStoreManager.getStore();
+    const now = new Date().toISOString();
+    let count = 0;
+
+    const titles: string[] = [
+      content.substring(0, 20) + ' - base concept intro',
+      content.substring(0, 20) + ' - deep analysis',
+      content.substring(0, 20) + ' - research trends',
+    ];
+
+    for (let i = 0; i < titles.length; i++) {
+      const docId: string = generateUUID();
+      const valueBucket: relationalStore.ValuesBucket = {};
+      valueBucket['id'] = docId;
+      valueBucket['course_id'] = courseId;
+      valueBucket['source_type'] = 'ai';
+      valueBucket['title'] = titles[i];
+      valueBucket['content'] = 'AI generated content for ' + content.substring(0, 30);
+      valueBucket['file_path'] = '';
+      valueBucket['file_type'] = 'md';
+      valueBucket['keywords'] = '[]';
+      valueBucket['uploaded_at'] = now;
+      const rowId: number = await store.insert('document', valueBucket);
+      if (rowId > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
 }
