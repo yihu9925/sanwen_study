@@ -4,7 +4,7 @@ import { promptAction } from '@kit.ArkUI';
 import { Course } from '../models/Course';
 import { KnowledgeGraph, GraphNode } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
-import { Question } from '../models/Question';
+import { Question, getBloomLevelName } from '../models/Question';
 import { Document } from '../models/Document';
 import { CourseService } from '../services/CourseService';
 import { KnowledgeBaseService } from '../services/KnowledgeBaseService';
@@ -42,6 +42,13 @@ struct CourseDetailPage {
     if (this.courseId) {
       this.loadCourseData();
       this.setupEventListeners();
+    }
+  }
+
+  // 从AssessmentDetailPage返回时全面刷新
+  onPageShow(): void {
+    if (this.courseId) {
+      this.loadCourseData();
     }
   }
 
@@ -904,19 +911,16 @@ struct CourseDetailPage {
                     .fontSize(16)
                     .fontWeight(FontWeight.Bold);
 
-                  ForEach(question.options, (option: string, optIndex: number) => {
-                    Row() {
-                      Radio({ value: optIndex.toString(), group: question.id })
-                        .width(20)
-                        .height(20);
-
-                      Text(option)
-                        .fontSize(14)
-                        .margin({ left: 8 });
-                    }
-                    .width('100%')
-                    .margin({ top: 8 });
-                  });
+                  // 开放式题目：显示布鲁姆层级+难度，不显示选项
+                  Row() {
+                    Text('\u5e03\u9c81\u59c6\u5c42\u7ea7: ' + getBloomLevelName(question.bloomLevel))
+                      .fontSize(12).fontColor('#007DFF')
+                      .padding({ left: 6, right: 6 }).backgroundColor('#E6F7FF').borderRadius(4);
+                    Text('\u2b50'.repeat(question.difficulty))
+                      .fontSize(12).margin({ left: 8 });
+                    Text('\u5f00\u653e\u5f0f\u56de\u7b54')
+                      .fontSize(11).fontColor('#999999').margin({ left: 8 });
+                  }
                 }
                 .width('100%')
                 .padding(16)

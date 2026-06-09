@@ -243,15 +243,18 @@ export struct RadarChartView {
   }
 
   private drawLabels(): void {
-    this.context.fillStyle = '#333333';
-    this.context.font = '12px sans-serif';
+    this.context.fillStyle = '#000000';
+    this.context.font = 'bold 14px sans-serif';
     this.context.textAlign = 'center';
+    this.context.shadowColor = '#FFFFFF';
+    this.context.shadowBlur = 3;
 
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
       const x = this.centerX + Math.cos(angle) * (this.radius + 20);
       const y = this.centerY + Math.sin(angle) * (this.radius + 20);
 
+      this.context.shadowBlur = 0;
       this.context.fillText(this.labels[i], x, y);
     }
   }
