@@ -7,7 +7,6 @@ interface RouteConfig {
   ASSESSMENT_DETAIL: string;
   ARCHIVE: string;
   SETTINGS: string;
-  DISCUSSION: string;
   Q1_KNOWLEDGE_GRAPH: string;
   Q2_CONTROVERSY: string;
   Q3_ASSESSMENT: string;
@@ -19,7 +18,6 @@ export const ROUTES: RouteConfig = {
   ASSESSMENT_DETAIL: 'pages/AssessmentDetailPage',
   ARCHIVE: 'pages/ArchiveManagementPage',
   SETTINGS: 'pages/SettingsPage',
-  DISCUSSION: 'pages/DiscussionHub',
   Q1_KNOWLEDGE_GRAPH: 'pages/Q1_KnowledgeGraphPage',
   Q2_CONTROVERSY: 'pages/Q2_ControversyPage',
   Q3_ASSESSMENT: 'pages/Q3_AssessmentPage',
@@ -68,10 +66,6 @@ export class AppRouter {
 
   static toSettings(): void {
     router.pushUrl({ url: ROUTES.SETTINGS });
-  }
-
-  static toDiscussion(): void {
-    router.pushUrl({ url: ROUTES.DISCUSSION });
   }
 
   static back(): void {

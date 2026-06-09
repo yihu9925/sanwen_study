@@ -68,7 +68,6 @@ export interface Evidence {
 |------|------|
 | 收起 | 仅显示标题和观点摘要 |
 | 展开证据 | 点击"展开证据"显示详细引用 |
-| 参与讨论 | 跳转到讨论区对应话题 |
 | 点赞 | 计数+1，防止重复点击 |
 
 ## 使用示例
@@ -76,11 +75,7 @@ export interface Evidence {
 ```typescript
 ControversyCard({
   controversy: currentControversy,
-  isActive: index === activeIndex,
-  onDiscuss: (id) => router.pushUrl({
-    url: 'pages/DiscussionHub',
-    params: { controversyId: id }
-  })
+  isActive: index === activeIndex
 })
 ```
 

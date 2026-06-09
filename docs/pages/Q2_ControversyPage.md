@@ -65,7 +65,6 @@
 │                                                     │
 │  Swiper切换 → activeIndex 更新                      │
 │  展开证据 → showPro/showConEvidence 切换            │
-│  参与讨论 → router.push DiscussionHub              │
 │  完成第二问 → 回调父页面更新进度                    │
 │                                                     │
 │  异步: EventBus.on('controversy_ready')             │
