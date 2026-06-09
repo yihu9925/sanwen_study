@@ -9,8 +9,9 @@ export struct KnowledgeGraphView {
   @State zoomScale: number = 1.0;
   @State offsetX: number = 0;
   @State offsetY: number = 0;
-  private canvasWidth: number = 400;
-  private canvasHeight: number = 400;
+  @State canvasWidth: number = 360;
+  private canvasHeight: number = 360;
+  private minCanvasSize: number = 280;
   private lastTouchX: number = 0;
   private lastTouchY: number = 0;
   private isDragging: boolean = false;
@@ -21,6 +22,7 @@ export struct KnowledgeGraphView {
   aboutToAppear(): void {
     this.offsetX = this.canvasWidth / 2;
     this.offsetY = this.canvasHeight / 2;
+    // Canvas尺寸自适应后确保中心点正确
   }
 
   build() {
@@ -43,11 +45,17 @@ export struct KnowledgeGraphView {
 
       Stack()
         .hitTestBehavior(HitTestMode.Block)
-        .width(this.canvasWidth)
-        .height(this.canvasHeight) {
+        .width('100%')
+        .height(this.canvasHeight)
+        .onAreaChange((oldValue: Area, newValue: Area) => {
+          const w: number = newValue.width as number;
+          if (w > this.minCanvasSize) {
+            this.canvasWidth = w;
+          }
+        }) {
         Canvas(this.context)
           .key('kg_' + this.forceRedraw)
-          .width(this.canvasWidth)
+          .width('100%')
           .height(this.canvasHeight)
           .backgroundColor('#FAFAFA')
           .borderRadius(8)
@@ -98,7 +106,8 @@ export struct KnowledgeGraphView {
         }
         .width(44)
         .alignItems(HorizontalAlign.Center)
-        .position({ x: this.canvasWidth - 56, y: this.canvasHeight - 130 });
+        .align(Alignment.BottomEnd)
+        .margin({ right: 12, bottom: 12 });
       }
 
       if (this.selectedNode) {
