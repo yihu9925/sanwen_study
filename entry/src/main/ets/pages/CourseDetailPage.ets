@@ -521,7 +521,7 @@ struct CourseDetailPage {
           .justifyContent(FlexAlign.Center);
         } else {
           List() {
-            ForEach(this.documents, (doc: Document) => {
+            ForEach(this.documents, (doc: Document, index: number) => {
               ListItem() {
                 Row() {
                   Column() {
@@ -560,9 +560,14 @@ struct CourseDetailPage {
                   .alignItems(HorizontalAlign.Start)
                   .margin({ left: 8 });
 
-                  Text('>')
-                    .fontSize(16)
-                    .fontColor('#CCCCCC');
+                  // 序号圆标（限制宽度防止溢出）
+                  Text('' + (index + 1))
+                    .fontSize(12)
+                    .fontColor('#007DFF')
+                    .width(22).height(22)
+                    .textAlign(TextAlign.Center)
+                    .backgroundColor('#E6F7FF')
+                    .borderRadius(11);
                 }
                 .width('100%')
                 .padding(12)
@@ -650,15 +655,18 @@ struct CourseDetailPage {
 
   // AI爬取网络资源
   async crawlWebResources(): Promise<void> {
-    promptAction.showToast({ message: '\u5DF2\u5F00\u59CB\u81EA\u52A8\u722C\u53D6\u7F51\u7EDC\u8D44\u6E90...' });
     try {
-      // 调用LLM生成相关的资料内容
-      const content = this.course?.question || '';
+      promptAction.showToast({ message: '\u6B63\u5728\u751F\u6210\u8D44\u6599...' });
+      const content: string = this.course ? this.course.question : '';
       const docCount: number = await KnowledgeBaseService.generateAIDocuments(this.courseId, content);
       await this.loadDocuments();
-      promptAction.showToast({ message: '\u722C\u53D6\u5B8C\u6210\uff0c\u5171\u6DFB\u52A0 ' + docCount + ' \u4E2A\u8D44\u6599' });
+      if (docCount > 0) {
+        promptAction.showToast({ message: '\u751F\u6210\u5B8C\u6210\uff0c\u5171\u6DFB\u52A0 ' + docCount + ' \u4E2A\u8D44\u6599' });
+      } else {
+        promptAction.showToast({ message: '\u751F\u6210\u5931\u8D25\uff0c\u8BF7\u68C0\u67E5\u6570\u636E\u5E93\u72B6\u6001' });
+      }
     } catch (e) {
-      promptAction.showToast({ message: '\u722C\u53D6\u5931\u8D25\uff0c\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5' });
+      promptAction.showToast({ message: '\u751F\u6210\u5931\u8D25\uff0c\u8BF7\u7A0D\u540E\u91CD\u8BD5' });
     }
   }
 
