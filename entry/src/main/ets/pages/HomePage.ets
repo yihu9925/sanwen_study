@@ -20,6 +20,11 @@ export struct HomePage {
     this.loadCourses();
   }
 
+  // 页面重新可见时刷新课程列表（从CourseDetailPage返回时触发）
+  onPageShow(): void {
+    this.loadCourses();
+  }
+
   @State courseHealthMap: Record<string, CourseContentStatus> = {};
 
   async loadCourses(): Promise<void> {
@@ -64,7 +69,7 @@ export struct HomePage {
         domain
       );
 
-      // 跳转到课程详情页
+      // 跳转到课程详情页（返回时onPageShow会自动刷新列表）
       AppRouter.toCourseDetail(courseId);
       
       // 清空搜索框

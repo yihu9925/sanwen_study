@@ -176,11 +176,17 @@ struct CourseDetailPage {
     try {
       this.isLoading = true;
       
-      // 先加载资料库文档，作为LLM生成的基础素材
+      // ===== 第一步：AI自动生成资料库内容 =====
+      promptAction.showToast({ message: '\u6b63\u5728\u751f\u6210\u5b66\u4e60\u8d44\u6599...' });
+      const docCount: number = await KnowledgeBaseService.generateAIDocuments(
+        this.courseId, this.course.question
+      );
+
+      // ===== 第二步：加载资料库文档，作为三问生成的基础素材 =====
       await this.loadDocuments();
       let materialContent: string = this.course.question;
-      
-      // 将资料库中的文档内容追加到请求中（截取前5000字符）
+
+      // 将资料库中的文档内容追加到提示词中
       if (this.documents.length > 0) {
         let docTexts: string[] = [];
         for (let d = 0; d < this.documents.length; d++) {
@@ -236,7 +242,8 @@ struct CourseDetailPage {
       this.contentStatus = await CourseHealthService.checkCourseStatus(this.courseId);
 
       const courseTitle: string = this.course?.title || '';
-      promptAction.showToast({ message: courseTitle + ' \u751f\u6210\u5b8c\u6bd5' });
+      const docInfo: string = docCount > 0 ? ' \uff08\u8d44\u6599\u5e93' + docCount + '\u7bc7\uff09' : '';
+      promptAction.showToast({ message: courseTitle + ' \u751f\u6210\u5b8c\u6bd5' + docInfo });
     } catch (error) {
       const errMsg: string = (error as Error).message || '\u672a\u77e5\u9519\u8bef';
       console.error('Generate content failed:', errMsg);
