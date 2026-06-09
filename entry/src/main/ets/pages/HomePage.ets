@@ -232,7 +232,7 @@ export struct HomePage {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start);
 
-        // 进度 + 删除按钮
+        // 进度 + 状态
         Column() {
           Text(course.progressPercent + '%')
             .fontSize(24)
@@ -243,25 +243,12 @@ export struct HomePage {
             .fontSize(12)
             .fontColor('#999999')
             .margin({ top: 4 });
-
-          Button() {
-            Text('\u2716').fontSize(12).fontColor('#FF4D4F');
-          }
-          .width(28)
-          .height(28)
-          .backgroundColor('#FFF1F0')
-          .borderRadius(14)
-          .margin({ top: 8 })
-          .onClick(async () => {
-            await CourseService.deleteCourse(course.id);
-            promptAction.showToast({ message: course.title + ' \u5DF2\u5220\u9664' });
-            this.loadCourses();
-          });
         }
         .alignItems(HorizontalAlign.Center);
       }
       .width('100%');
 
+      // 进度条
       Row() {
         Row()
           .width(course.progressPercent + '%')
@@ -275,10 +262,51 @@ export struct HomePage {
       .borderRadius(2)
       .margin({ top: 12 });
 
-      Text(getTimeAgo(course.lastAccessedAt))
-        .fontSize(12)
-        .fontColor('#CCCCCC')
-        .margin({ top: 8 });
+      // 底部操作栏：时间 + 操作按钮
+      Row() {
+        Text(getTimeAgo(course.lastAccessedAt))
+          .fontSize(12)
+          .fontColor('#CCCCCC')
+          .layoutWeight(1);
+
+        // 归档按钮
+        if (course.status !== 'archived') {
+          Button('\u5f52\u6863')
+            .fontSize(11).fontColor('#999999')
+            .height(26).borderRadius(13)
+            .backgroundColor('#F5F5F5').margin({ left: 4 })
+            .onClick(async (event: ClickEvent) => {
+              event.stopPropagation();
+              await CourseService.archiveCourse(course.id);
+              promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
+              this.loadCourses();
+            });
+        }
+
+        // 删除按钮（长按菜单触发后展示）
+        Button('\u5220\u9664')
+          .fontSize(11).fontColor('#FF4D4F')
+          .height(26).borderRadius(13)
+          .backgroundColor('#FFF1F0').margin({ left: 4 })
+          .onClick(async (event: ClickEvent) => {
+            event.stopPropagation();
+            promptAction.showDialog({
+              title: '\u786e\u8ba4\u5220\u9664',
+              message: '\u786e\u5b9a\u8981\u5220\u9664\u300c' + course.title + '\u300d\u5417\uff1f\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002',
+              buttons: [
+                { text: '\u53d6\u6d88', color: '#999999' },
+                { text: '\u5220\u9664', color: '#FF4D4F' }
+              ]
+            }).then(async (data: promptAction.ShowDialogSuccessResponse) => {
+              if (data.index === 1) {
+                await CourseService.deleteCourse(course.id);
+                promptAction.showToast({ message: course.title + ' \u5df2\u5220\u9664' });
+                this.loadCourses();
+              }
+            }).catch(() => {});
+          });
+      }
+      .width('100%').margin({ top: 8 });
     }
     .width('100%')
     .padding(16)

@@ -219,9 +219,66 @@ struct CourseDetailPage {
 
       // 内容区域
       this.TabContent();
+
+      // 底部进度条
+      this.ProgressBar();
     }
     .width('100%')
     .height('100%');
+  }
+
+  @Builder
+  ProgressBar(): void {
+    Row() {
+      Column() {
+        Row() {
+          Text('\u5b66\u4e60\u8fdb\u5ea6')
+            .fontSize(12).fontColor('#666666');
+          Text(String(this.course?.progressPercent || 0) + '%')
+            .fontSize(12).fontWeight(FontWeight.Bold)
+            .fontColor('#007DFF').margin({ left: 8 });
+        }
+        .width('100%');
+
+        Row() {
+          // 进度条
+          Row() {
+            Row()
+              .width(String(this.course?.progressPercent || 0) + '%')
+              .height(6)
+              .backgroundColor('#007DFF')
+              .borderRadius(3);
+          }
+          .width('100%').height(6).backgroundColor('#E0E0E0').borderRadius(3);
+        }
+        .width('100%').margin({ top: 4 });
+
+        // 三问步骤状态
+        Row() {
+          this.StepDot(1, '\u7b2c\u4e00\u95ee', (this.course?.progressQ1 || 0) === 1);
+          this.StepDot(2, '\u7b2c\u4e8c\u95ee', (this.course?.progressQ2 || 0) === 1);
+          this.StepDot(3, '\u7b2c\u4e09\u95ee', (this.course?.progressQ3 || 0) === 1);
+        }
+        .width('100%').margin({ top: 6 });
+      }
+      .layoutWeight(1);
+    }
+    .width('100%').padding({ left: 16, right: 16, top: 8, bottom: 12 })
+    .backgroundColor(Color.White);
+  }
+
+  @Builder
+  StepDot(step: number, label: string, done: boolean): void {
+    Row() {
+      Row()
+        .width(10).height(10)
+        .backgroundColor(done ? '#4CAF50' : '#D1D5DB')
+        .borderRadius(5);
+      Text(label)
+        .fontSize(11).fontColor(done ? '#4CAF50' : '#999999')
+        .margin({ left: 4 });
+    }
+    .layoutWeight(1).justifyContent(FlexAlign.Center);
   }
 
   @Builder
@@ -288,6 +345,29 @@ struct CourseDetailPage {
     .justifyContent(FlexAlign.Center)
     .onClick(() => {
       this.currentTab = index;
+      // 长按可跳转到独立页面
+    });
+  }
+
+  // 跳转到独立的三问页面
+  @Builder
+  IndependentPageLink(pageType: string): void {
+    Row() {
+      Text('\u5c55\u5f00 >')
+        .fontSize(10).fontColor('#007DFF');
+    }
+    .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+    .backgroundColor('#E6F7FF').borderRadius(4)
+    .margin({ left: 8 })
+    .onClick(() => {
+      if (!this.courseId) return;
+      if (pageType === 'q1') {
+        AppRouter.toQ1KnowledgeGraph(this.courseId);
+      } else if (pageType === 'q2') {
+        AppRouter.toQ2Controversy(this.courseId);
+      } else if (pageType === 'q3') {
+        AppRouter.toQ3Assessment(this.courseId);
+      }
     });
   }
 
