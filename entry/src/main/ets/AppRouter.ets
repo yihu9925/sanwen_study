@@ -1,4 +1,4 @@
-// 路由配置
+// 路由配置（含三问独立页面）
 import { router } from '@kit.ArkUI';
 
 interface RouteConfig {
@@ -8,6 +8,9 @@ interface RouteConfig {
   ARCHIVE: string;
   SETTINGS: string;
   DISCUSSION: string;
+  Q1_KNOWLEDGE_GRAPH: string;
+  Q2_CONTROVERSY: string;
+  Q3_ASSESSMENT: string;
 }
 
 export const ROUTES: RouteConfig = {
@@ -17,6 +20,9 @@ export const ROUTES: RouteConfig = {
   ARCHIVE: 'pages/ArchiveManagementPage',
   SETTINGS: 'pages/SettingsPage',
   DISCUSSION: 'pages/DiscussionHub',
+  Q1_KNOWLEDGE_GRAPH: 'pages/Q1_KnowledgeGraphPage',
+  Q2_CONTROVERSY: 'pages/Q2_ControversyPage',
+  Q3_ASSESSMENT: 'pages/Q3_AssessmentPage',
 };
 
 // 导航工具类
@@ -31,6 +37,27 @@ export class AppRouter {
   static toAssessmentDetail(courseId: string): void {
     router.pushUrl({
       url: ROUTES.ASSESSMENT_DETAIL,
+      params: { courseId }
+    });
+  }
+
+  static toQ1KnowledgeGraph(courseId: string): void {
+    router.pushUrl({
+      url: ROUTES.Q1_KNOWLEDGE_GRAPH,
+      params: { courseId }
+    });
+  }
+
+  static toQ2Controversy(courseId: string): void {
+    router.pushUrl({
+      url: ROUTES.Q2_CONTROVERSY,
+      params: { courseId }
+    });
+  }
+
+  static toQ3Assessment(courseId: string): void {
+    router.pushUrl({
+      url: ROUTES.Q3_ASSESSMENT,
       params: { courseId }
     });
   }
