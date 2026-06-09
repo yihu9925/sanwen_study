@@ -13,6 +13,11 @@ struct ArchiveManagementPage {
     this.loadArchivedCourses();
   }
 
+  // 返回时刷新列表
+  onPageShow(): void {
+    this.loadArchivedCourses();
+  }
+
   async loadArchivedCourses(): Promise<void> {
     const courses = await CourseService.getCoursesByUser('default_user');
     this.archivedCourses = courses.filter(c => c.status === 'archived');

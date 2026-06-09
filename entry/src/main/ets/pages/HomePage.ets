@@ -31,7 +31,9 @@ export struct HomePage {
   async loadCourses(): Promise<void> {
     try {
       this.pageState = 'loading';
-      this.courses = await CourseService.getCoursesByUser(this.userId);
+      const allCourses = await CourseService.getCoursesByUser(this.userId);
+      // 过滤掉已归档的课程（归档课程在归档管理页查看）
+      this.courses = allCourses.filter(c => c.status !== 'archived');
       // 检测每个课程的内容健康状态
       const healthMap: Record<string, CourseContentStatus> = {};
       for (const c of this.courses) {
@@ -314,7 +316,7 @@ export struct HomePage {
             .height(26).borderRadius(13)
             .backgroundColor('#F5F5F5').margin({ left: 4 })
             .onClick(() => {
-              CourseService.deleteCourse(course.id).then(() => {
+              CourseService.updateCourseStatus(course.id, 'archived').then(() => {
                 promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
                 this.loadCourses();
               }).catch(() => {
