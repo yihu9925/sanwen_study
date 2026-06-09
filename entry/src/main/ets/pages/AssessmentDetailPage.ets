@@ -15,6 +15,15 @@ interface AssessmentLevelStat {
   averageScore: number;
 }
 
+// 薄弱维度分析条目
+interface WeaknessItem {
+  level: number;
+  levelName: string;
+  score: number;
+  advice: string;
+  isWeak: boolean;
+}
+
 @Entry
 @Component
 struct AssessmentDetailPage {
@@ -295,6 +304,55 @@ struct AssessmentDetailPage {
       promptAction.showToast({ message: '\u5bfc\u51fa\u5b8c\u6210\uff0c\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f' });
     } catch (e) {
       promptAction.showToast({ message: '\u5bfc\u51fa\u5931\u8d25' });
+    }
+  }
+
+  // 薄弱维度分析
+  getWeaknessAnalysis(): WeaknessItem[] {
+    const items: WeaknessItem[] = [];
+    const levelNames: string[] = ['\u8bb0\u5fc6', '\u7406\u89e3', '\u5e94\u7528', '\u5206\u6790', '\u8bc4\u4ef7', '\u521b\u9020'];
+    const levelAdvice: string[] = [
+      '\u5efa\u8bae\u591a\u6b21\u590d\u4e60\u57fa\u7840\u6982\u5ff5\uff0c\u5236\u4f5c\u6982\u5ff5\u5361\u7247\u8fdb\u884c\u8bb0\u5fc6\u953b\u70bc\u3002',
+      '\u5efa\u8bae\u7528\u81ea\u5df1\u7684\u8bdd\u590d\u8ff0\u77e5\u8bc6\u70b9\uff0c\u5c1d\u8bd5\u6559\u5b66\u4ed6\u4eba\u3002',
+      '\u5efa\u8bae\u591a\u505a\u7ec3\u4e60\u9898\uff0c\u5c06\u77e5\u8bc6\u5e94\u7528\u4e8e\u5b9e\u9645\u573a\u666f\u3002',
+      '\u5efa\u8bae\u7ec3\u4e60\u62c6\u89e3\u590d\u6742\u95ee\u9898\uff0c\u5212\u5206\u7ed3\u6784\u56fe\u3002',
+      '\u5efa\u8bae\u5bfb\u627e\u4e0d\u540c\u89c2\u70b9\u8fdb\u884c\u6bd4\u8f83\u5206\u6790\uff0c\u57f9\u517b\u6279\u5224\u6027\u601d\u7ef4\u3002',
+      '\u5efa\u8bae\u5c1d\u8bd5\u5c06\u77e5\u8bc6\u8f6c\u5316\u4e3a\u81ea\u5df1\u7684\u89e3\u51b3\u65b9\u6848\u6216\u521b\u65b0\u9879\u76ee\u3002'
+    ];
+    for (let lv = 1; lv <= 6; lv++) {
+      const score: number = this.getLevelAvgScore(lv);
+      const item: WeaknessItem = {
+        level: lv,
+        levelName: levelNames[lv - 1],
+        score: score,
+        advice: score >= 80 ? levelAdvice[lv - 1].replace('\u5efa\u8bae', '\u4fdd\u6301\u5f53\u524d\u6c34\u5e73\uff0c\u53ef') : levelAdvice[lv - 1],
+        isWeak: score < 60
+      };
+      items.push(item);
+    }
+    return items;
+  }
+
+  // 按层级折叠展示对话记录
+  @Builder
+  CollapsibleAnswers(): void {
+    Column() {
+      ForEach(this.answerDetails, (detail: AnswerDetailItem, index: number) => {
+        Column() {
+          Row() {
+            Text('\u7b2c' + (index + 1) + '\u9898: ' + getBloomLevelName(detail.bloomLevel))
+              .fontSize(14).fontWeight(FontWeight.Bold).fontColor(detail.score >= 60 ? '#4CAF50' : '#F44336');
+            Text(detail.score + '/100').fontSize(12).fontColor(detail.score >= 60 ? '#4CAF50' : '#F44336')
+              .margin({ left: 8 });
+          }
+          .width('100%');
+
+          Text('\u9898\u76ee: ' + detail.questionText).fontSize(12).fontColor('#333333')
+            .width('100%').margin({ top: 4 }).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis });
+        }
+        .padding(8).backgroundColor(detail.score >= 60 ? '#F1F8E9' : '#FFF3E0').borderRadius(6)
+        .width('100%').margin({ top: 4 });
+      });
     }
   }
 
