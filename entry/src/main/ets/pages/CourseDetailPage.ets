@@ -1057,6 +1057,7 @@ struct CourseDetailPage {
                 .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
                 .lineHeight(26)
                 .width('100%')
+                .textIndent(32)
                 .margin({ bottom: 12 });
             });
           }
