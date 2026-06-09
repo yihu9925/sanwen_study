@@ -173,8 +173,8 @@ export class KnowledgeBaseService {
         }
       }
     } catch (e) {
-      // \u751f\u6210\u5931\u8d25\uff0c\u8fd4\u56de0
-      console.error('generateAIDocuments failed: ' + (e as Error).message);
+      const errMsg: string = (e as Error).message || '\u672a\u77e5\u9519\u8bef';
+      console.error('generateAIDocuments failed: ' + errMsg);
     }
     return count;
   }

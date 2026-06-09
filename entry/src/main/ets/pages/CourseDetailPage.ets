@@ -141,9 +141,19 @@ struct CourseDetailPage {
         await this.loadQuestions();
       }
 
+      // 重新加载所有数据
+      const results = await Promise.all([
+        CourseService.getCourseById(this.courseId),
+        KnowledgeBaseService.getKnowledgeGraph(this.courseId),
+        KnowledgeBaseService.getControversies(this.courseId),
+        AssessmentService.getQuestions(this.courseId)
+      ]);
+      this.course = results[0] as Course | null;
+      this.knowledgeGraph = results[1] as KnowledgeGraph;
+      this.controversies = results[2] as Controversy[];
+      this.questions = results[3] as Question[];
       // 重新检测状态
       this.contentStatus = await CourseHealthService.checkCourseStatus(this.courseId);
-      this.course = await CourseService.getCourseById(this.courseId);
 
       if (success) {
         promptAction.showToast({ message: (labels[part] || '') + '\u751f\u6210\u5b8c\u6210\uff01' });
@@ -151,7 +161,8 @@ struct CourseDetailPage {
         promptAction.showToast({ message: (labels[part] || '') + '\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 API \u914d\u7f6e' });
       }
     } catch (e) {
-      promptAction.showToast({ message: '\u586b\u8865\u5931\u8d25' });
+      const errMsg: string = (e as Error).message || '\u672a\u77e5\u9519\u8bef';
+      promptAction.showToast({ message: '\u586b\u8865\u5931\u8d25: ' + errMsg.substring(0, 40) });
     } finally {
       this.isFilling = 0;
     }
@@ -208,13 +219,28 @@ struct CourseDetailPage {
         5
       );
 
-      const courseTitle: string = this.course?.title || '';
-      this.course = await CourseService.getCourseById(this.courseId);
+      // 重新加载所有三问数据（确保UI跟随更新）
+      const results = await Promise.all([
+        CourseService.getCourseById(this.courseId),
+        KnowledgeBaseService.getKnowledgeGraph(this.courseId),
+        KnowledgeBaseService.getControversies(this.courseId),
+        AssessmentService.getQuestions(this.courseId),
+        KnowledgeBaseService.getDocuments(this.courseId)
+      ]);
+      this.course = results[0] as Course | null;
+      this.knowledgeGraph = results[1] as KnowledgeGraph;
+      this.controversies = results[2] as Controversy[];
+      this.questions = results[3] as Question[];
+      this.documents = results[4] as Document[];
+      // 重新检测内容健康状态
+      this.contentStatus = await CourseHealthService.checkCourseStatus(this.courseId);
 
+      const courseTitle: string = this.course?.title || '';
       promptAction.showToast({ message: courseTitle + ' \u751f\u6210\u5b8c\u6bd5' });
     } catch (error) {
-      console.error('Generate content failed:', error);
-      promptAction.showToast({ message: '\u5185\u5bb9\u751f\u6210\u5931\u8d25' });
+      const errMsg: string = (error as Error).message || '\u672a\u77e5\u9519\u8bef';
+      console.error('Generate content failed:', errMsg);
+      promptAction.showToast({ message: '\u751f\u6210\u5931\u8d25: ' + errMsg.substring(0, 50) });
     } finally {
       this.isLoading = false;
     }

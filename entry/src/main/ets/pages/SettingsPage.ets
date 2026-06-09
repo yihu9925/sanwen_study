@@ -1,6 +1,7 @@
 // 设置页 - 含AI API配置 + 暗黑模式
 import { AppRouter } from '../AppRouter';
 import { promptAction } from '@kit.ArkUI';
+import { http } from '@kit.NetworkKit';
 import { ConfigService } from '../services/ConfigService';
 
 @Entry
@@ -13,6 +14,8 @@ struct SettingsPage {
   @State model: string = 'gpt-4';
   @State showApiInput: boolean = false;
   @State tempKey: string = '';
+  @State testStatus: string = '\u68c0\u6d4bAI\u8fde\u901a\u6027';
+  @State testResult: number = -1;  // -1=未测试, 0=失败, 1=成功
   @StorageLink('themeMode') themeMode: string = 'auto';
 
   aboutToAppear(): void {
