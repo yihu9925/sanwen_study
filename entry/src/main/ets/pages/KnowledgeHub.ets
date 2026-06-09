@@ -5,8 +5,9 @@ import { getTimeAgo } from '../utils/DateUtils';
 @Component
 export struct KnowledgeHub {
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
-  @StorageLink('userId') userId: string = '';
   @StorageLink('themeMode') themeMode: string = 'auto';
+
+  private userId: string = 'default_user';
 
   @State searchText: string = '';
   @State activeFilter: string = 'all';
