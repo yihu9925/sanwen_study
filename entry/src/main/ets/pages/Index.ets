@@ -23,10 +23,9 @@ struct Index {
       .tabBar('\u9996\u9875');
 
       TabContent() {
-        KnowledgeHub();
+        KnowledgeHub({ refreshKey: this.knowledgeHubRefreshKey });
       }
-      .tabBar('\u77E5\u8BC6\u5E93')
-      .key('kh_' + this.knowledgeHubRefreshKey);
+      .tabBar('\u77E5\u8BC6\u5E93');
 
       TabContent() {
         PersonalCenter();

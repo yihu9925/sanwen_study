@@ -1,15 +1,16 @@
 import { router } from '@kit.ArkUI';
 import { KnowledgeBaseService, DocWithCourse } from '../services/KnowledgeBaseService';
+import { CourseService } from '../services/CourseService';
+import { Course } from '../models/Course';
 import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct KnowledgeHub {
+  @Prop @Watch('onRefreshKeyChange') refreshKey: number = 0;
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
-  @StorageLink('knowledgeHubRefreshKey') knowledgeHubRefreshKey: number = 0;
 
   private userId: string = 'default_user';
-  private lastRefreshKey: number = 0;
 
   @State searchText: string = '';
   @State activeFilter: string = 'all';
@@ -25,18 +26,24 @@ export struct KnowledgeHub {
     this.loadData();
   }
 
+  onRefreshKeyChange(): void {
+    this.loadData();
+  }
+
   async loadData(): Promise<void> {
     this.isLoading = true;
     this.errorMsg = '';
     try {
-      this.allDocuments = await KnowledgeBaseService.getDocumentsByUser(this.userId);
+      const courses: Course[] = await CourseService.getCoursesByUser(this.userId);
       const domainSet: Set<string> = new Set<string>();
-      for (const doc of this.allDocuments) {
-        if (doc.domain) {
-          domainSet.add(doc.domain);
+      for (const c of courses) {
+        if (c.domain) {
+          domainSet.add(c.domain);
         }
       }
       this.domains = Array.from(domainSet);
+
+      this.allDocuments = await KnowledgeBaseService.getDocumentsByUser(this.userId);
       this.applyFilters();
     } catch (e) {
       this.errorMsg = '\u52A0\u8F7D\u5931\u8D25';
@@ -107,9 +114,33 @@ export struct KnowledgeHub {
 
       // 筛选栏 - 按课程分类
       Row() {
-        this.FilterBtn('\u5168\u90E8', 'all', this.activeFilter === 'all');
+        Button('\u5168\u90E8')
+          .fontSize(13)
+          .fontColor(this.activeFilter === 'all' ? Color.White :
+            (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
+          .backgroundColor(this.activeFilter === 'all' ? '#007DFF' :
+            (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
+          .borderRadius(16)
+          .height(32)
+          .margin({ right: 8 })
+          .onClick(() => {
+            this.activeFilter = 'all';
+            this.applyFilters();
+          });
         ForEach(this.domains, (domain: string) => {
-          this.FilterBtn(domain, domain, this.activeFilter === domain);
+          Button(domain)
+            .fontSize(13)
+            .fontColor(this.activeFilter === domain ? Color.White :
+              (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
+            .backgroundColor(this.activeFilter === domain ? '#007DFF' :
+              (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
+            .borderRadius(16)
+            .height(32)
+            .margin({ right: 8 })
+            .onClick(() => {
+              this.activeFilter = domain;
+              this.applyFilters();
+            });
         });
       }
       .width('100%')
@@ -132,23 +163,6 @@ export struct KnowledgeHub {
     .height('100%')
     .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#FFFFFF')
     .bindSheet($$this.showDocSheet, this.DocSheet());
-  }
-
-  @Builder
-  FilterBtn(label: string, filter: string, isActive: boolean): void {
-    Button(label)
-      .fontSize(13)
-      .fontColor(isActive ? Color.White :
-        (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
-      .backgroundColor(isActive ? '#007DFF' :
-        (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
-      .borderRadius(16)
-      .height(32)
-      .margin({ right: 8 })
-      .onClick(() => {
-        this.activeFilter = filter;
-        this.applyFilters();
-      });
   }
 
   @Builder
@@ -246,7 +260,6 @@ export struct KnowledgeHub {
         ForEach(this.filteredDocs, (doc: DocWithCourse) => {
           Column() {
             Row() {
-              // 文档图标
               Text('\uD83D\uDCC4')
                 .fontSize(28)
                 .margin({ right: 12 });
