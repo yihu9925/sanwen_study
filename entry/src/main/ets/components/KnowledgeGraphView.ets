@@ -4,6 +4,7 @@ import { KnowledgeGraph, GraphNode, GraphEdge } from '../models/KnowledgeGraph';
 @Component
 export struct KnowledgeGraphView {
   @Prop graph: KnowledgeGraph = { nodes: [], edges: [] };
+  @Prop forceRedraw: number = 0;  // 用于检测图谱数据变化
   @State selectedNode: GraphNode | null = null;
   @State zoomScale: number = 1.0;
   @State offsetX: number = 0;

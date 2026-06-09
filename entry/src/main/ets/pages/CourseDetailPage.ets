@@ -31,6 +31,7 @@ struct CourseDetailPage {
   @State isLoading: boolean = false;
   @State contentStatus: CourseContentStatus | null = null;
   @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
+  @State graphKey: number = 0;  // 递增以强制刷新知识图谱组件
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -106,6 +107,7 @@ struct CourseDetailPage {
 
   async loadKnowledgeGraph(): Promise<void> {
     this.knowledgeGraph = await KnowledgeBaseService.getKnowledgeGraph(this.courseId);
+    this.graphKey++;  // 触发KnowledgeGraphView重建
   }
 
   async loadControversies(): Promise<void> {
@@ -511,7 +513,43 @@ struct CourseDetailPage {
     .justifyContent(FlexAlign.Center)
     .onClick(() => {
       this.currentTab = index;
-      // 长按可跳转到独立页面
+    });
+  }
+
+  // 双行排版Tab项（第一行：三问步骤名，第二行：功能名）
+  @Builder
+  TabItemTwoLine(line1: string, line2: string, index: number): void {
+    Column() {
+      if (line2.length > 0) {
+        Text(line1)
+          .fontSize(11)
+          .fontColor(this.currentTab === index ? '#007DFF' : '#666666')
+          .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal);
+        Text(line2)
+          .fontSize(11)
+          .fontColor(this.currentTab === index ? '#007DFF' : '#666666')
+          .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal)
+          .margin({ top: 1 });
+      } else {
+        Text(line1)
+          .fontSize(14)
+          .fontColor(this.currentTab === index ? '#007DFF' : '#666666')
+          .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal);
+      }
+
+      if (this.currentTab === index) {
+        Row()
+          .width(30)
+          .height(2)
+          .backgroundColor('#007DFF')
+          .margin({ top: 2 });
+      }
+    }
+    .layoutWeight(1)
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .onClick(() => {
+      this.currentTab = index;
     });
   }
 
@@ -663,18 +701,21 @@ struct CourseDetailPage {
     .width('100%').padding(16);
   }
 
-  // 显示上传对话框
+  // 显示上传对话框（上传后自动重新生成三问内容）
   showUploadDialog(): void {
     promptAction.showDialog({
       title: '\u4E0A\u4F20\u5B66\u4E60\u8D44\u6599',
-      message: '\u652F\u6301 PDF\u3001Word\u3001Markdown\u3001TXT \u683C\u5F0F\u3002\u8BF7\u5C06\u6587\u4EF6\u653E\u7F6E\u5728\u8BBE\u5907\u7684 Documents \u76EE\u5F55\u4E0B\u3002\n\n\u5F53\u524D\u7248\u672C\u652F\u6301\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u6DFB\u52A0\uff1a\n1. \u4F7F\u7528 @kit.FilePicker \u9009\u62E9\u6587\u4EF6\n2. \u8F93\u5165\u6587\u672C\u5185\u5BB9\u76F4\u63A5\u6DFB\u52A0',
+      message: '\u652F\u6301 PDF\u3001Word\u3001Markdown\u3001TXT \u683C\u5F0F\u3002\u8BF7\u5C06\u6587\u4EF6\u653E\u7F6E\u5728\u8BBE\u5907\u7684 Documents \u76EE\u5F55\u4E0B\u3002\n\n\u5F53\u524D\u7248\u672C\u652F\u6301\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u6DFB\u52A0\uff1a\n1. \u4F7F\u7528 @kit.FilePicker \u9009\u62E9\u6587\u4EF6\n2. \u8F93\u5165\u6587\u672C\u5185\u5BB9\u76F4\u63A5\u6DFB\u52A0\n\n\u63D0\u793A\uFF1A\u6DFB\u52A0\u8D44\u6599\u540E\u7CFB\u7EDF\u5C06\u81EA\u52A8\u91CD\u65B0\u751F\u6210\u4E09\u95EE\u5185\u5BB9',
       buttons: [
         { text: '\u53D6\u6D88', color: '#999999' },
-        { text: '\u8F93\u5165\u6587\u672C', color: '#007DFF' }
+        { text: '\u6DFB\u52A0\u5E76\u91CD\u751F\u6210', color: '#007DFF' }
       ]
     }).then(async (data: promptAction.ShowDialogSuccessResponse) => {
       if (data.index === 1) {
-        await this.addTextDocument();
+        // 先添加文档（模拟），再触发重生成
+        await KnowledgeBaseService.generateAIDocuments(this.courseId, this.course?.question || '');
+        await this.loadDocuments();
+        await this.generateContent();
       }
     }).catch(() => {});
   }
@@ -730,7 +771,7 @@ struct CourseDetailPage {
     Scroll() {
       Column() {
         // 知识图谱可视化组件
-        KnowledgeGraphView({ graph: this.knowledgeGraph });
+        KnowledgeGraphView({ graph: this.knowledgeGraph, forceRedraw: this.graphKey });
         
         // 雷达图展示
         if (this.course) {
