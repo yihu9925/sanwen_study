@@ -1002,19 +1002,6 @@ struct CourseDetailPage {
   DocSheet(): void {
     Column() {
       if (this.selectedDoc) {
-        Row() {
-          Blank().layoutWeight(1);
-          Button('\u2715')
-            .fontSize(18)
-            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
-            .backgroundColor(Color.Transparent)
-            .width(36).height(36)
-            .onClick(() => {
-              this.showDocSheet = false;
-            });
-        }
-        .width('100%')
-        .padding({ right: 12, top: 6 });
 
         Scroll() {
           Column() {
