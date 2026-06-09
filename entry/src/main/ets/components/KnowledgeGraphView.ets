@@ -17,6 +17,7 @@ export struct KnowledgeGraphView {
   private lastPinchDist: number = 0;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
+  private contextB: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
 
   aboutToAppear(): void {
     this.offsetX = this.canvasWidth / 2;
@@ -45,17 +46,31 @@ export struct KnowledgeGraphView {
         .hitTestBehavior(HitTestMode.Block)
         .width(this.canvasWidth)
         .height(this.canvasHeight) {
-        Canvas(this.context)
-          .width(this.canvasWidth)
-          .height(this.canvasHeight)
-          .backgroundColor('#FAFAFA')
-          .borderRadius(8)
-          .onReady(() => {
-            this.drawGraph();
-          })
-          .onTouch((event: TouchEvent) => {
-            this.handleTouch(event);
-          });
+        if (this.forceRedraw % 2 === 0) {
+          Canvas(this.context)
+            .width(this.canvasWidth)
+            .height(this.canvasHeight)
+            .backgroundColor('#FAFAFA')
+            .borderRadius(8)
+            .onReady(() => {
+              this.drawGraph();
+            })
+            .onTouch((event: TouchEvent) => {
+              this.handleTouch(event);
+            });
+        } else {
+          Canvas(this.contextB)
+            .width(this.canvasWidth)
+            .height(this.canvasHeight)
+            .backgroundColor('#FAFAFA')
+            .borderRadius(8)
+            .onReady(() => {
+              this.drawGraph();
+            })
+            .onTouch((event: TouchEvent) => {
+              this.handleTouch(event);
+            });
+        }
 
         // 右侧缩放按钮
         Column() {

@@ -781,6 +781,72 @@ struct CourseDetailPage {
           RadarChartView({ radarData: this.course.radarData, forceRedraw: this.radarKey })
             .margin({ top: 16 });
         }
+
+        // 课程章节列表（基于知识图谱节点生成）
+        if (this.knowledgeGraph.nodes.length > 0) {
+          Column() {
+            Row() {
+              Text('\u7ae0\u8282\u5bfc\u822a')
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold);
+            }
+            .width('100%')
+            .padding(16);
+
+            List() {
+              ForEach(this.knowledgeGraph.nodes, (node: GraphNode, index: number) => {
+                ListItem() {
+                  Row() {
+                    // 序号
+                    Text('' + (index + 1))
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(Color.White)
+                      .width(28).height(28)
+                      .textAlign(TextAlign.Center)
+                      .backgroundColor(node.importance >= 5 ? '#007DFF' : (node.importance >= 3 ? '#52C41A' : '#FAAD14'))
+                      .borderRadius(14);
+
+                    // 节点名 + 描述
+                    Column() {
+                      Text(node.label)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .margin({ left: 12 });
+
+                      if (node.description) {
+                        Text(node.description)
+                          .fontSize(12)
+                          .fontColor('#999999')
+                          .margin({ left: 12, top: 2 })
+                          .maxLines(2)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis });
+                      }
+                    }
+                    .layoutWeight(1)
+                    .alignItems(HorizontalAlign.Start);
+
+                    // 重要程度指示
+                    Text('\u2b50'.repeat(node.importance))
+                      .fontSize(10);
+                  }
+                  .width('100%')
+                  .padding(12)
+                  .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                  .borderRadius(8);
+                }
+                .margin({ bottom: 6 });
+              });
+            }
+            .width('100%')
+            .divider({ strokeWidth: 0 })
+            .padding(16);
+          }
+          .width('100%')
+          .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#FAFAFA')
+          .borderRadius(12)
+          .margin({ top: 16 });
+        }
       }
       .width('100%')
       .padding(16);
