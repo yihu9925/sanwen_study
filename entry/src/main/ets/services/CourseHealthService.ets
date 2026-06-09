@@ -1,0 +1,135 @@
+// 课程内容健康检测服务
+// 检测三问中哪些部分缺失，并支持逐个补全
+import { relationalStore } from '@kit.ArkData';
+import { RelationalStoreManager } from './RelationalStoreManager';
+import { KnowledgeBaseService } from './KnowledgeBaseService';
+import { AssessmentService } from './AssessmentService';
+import { CourseService } from './CourseService';
+
+// 三问完成状态
+export interface CourseContentStatus {
+  courseId: string;
+  q1KnowledgeGraph: boolean;   // 知识图谱是否已生成
+  q2Controversies: boolean;    // 争议点是否已生成
+  q3Questions: boolean;        // 测评题是否已生成
+  allComplete: boolean;        // 全部完成
+  missingParts: string[];      // 缺失的部分名称
+  progressPercent: number;     // 综合进度 0-100
+}
+
+export class CourseHealthService {
+
+  // 检测单个课程的内容完成状态
+  static async checkCourseStatus(courseId: string): Promise<CourseContentStatus> {
+    const store = RelationalStoreManager.getStore();
+    const missingParts: string[] = [];
+    let q1Done = false;
+    let q2Done = false;
+    let q3Done = false;
+
+    // 检测 Q1: 知识图谱
+    try {
+      const kbPredicates = new relationalStore.RdbPredicates('knowledgebase');
+      kbPredicates.equalTo('course_id', courseId);
+      const kbRs = await store.query(kbPredicates);
+      if (kbRs.goToNextRow()) {
+        const graphStr: string = kbRs.getString(2) || '[]';
+        try {
+          const graph = JSON.parse(graphStr) as Array<Record<string, Object>>;
+          q1Done = graph.length > 0;
+        } catch (e) {
+          q1Done = false;
+        }
+      }
+      kbRs.close();
+    } catch (e) {
+      q1Done = false;
+    }
+    if (!q1Done) {
+      missingParts.push('\u77e5\u8bc6\u56fe\u8c31');
+    }
+
+    // 检测 Q2: 争议点
+    try {
+      const kbPredicates2 = new relationalStore.RdbPredicates('knowledgebase');
+      kbPredicates2.equalTo('course_id', courseId);
+      const kbRs2 = await store.query(kbPredicates2);
+      if (kbRs2.goToNextRow()) {
+        const contStr: string = kbRs2.getString(3) || '[]';
+        try {
+          const cont = JSON.parse(contStr) as Array<Record<string, Object>>;
+          q2Done = cont.length > 0;
+        } catch (e) {
+          q2Done = false;
+        }
+      }
+      kbRs2.close();
+    } catch (e) {
+      q2Done = false;
+    }
+    if (!q2Done) {
+      missingParts.push('\u4e89\u8bae\u70b9\u5206\u6790');
+    }
+
+    // 检测 Q3: 测评题
+    try {
+      const qPredicates = new relationalStore.RdbPredicates('question');
+      qPredicates.equalTo('course_id', courseId);
+      const qRs = await store.query(qPredicates);
+      if (qRs.goToNextRow()) {
+        q3Done = true;
+      }
+      qRs.close();
+    } catch (e) {
+      q3Done = false;
+    }
+    if (!q3Done) {
+      missingParts.push('\u6d4b\u8bc4\u9898');
+    }
+
+    const doneCount = (q1Done ? 1 : 0) + (q2Done ? 1 : 0) + (q3Done ? 1 : 0);
+
+    return {
+      courseId: courseId,
+      q1KnowledgeGraph: q1Done,
+      q2Controversies: q2Done,
+      q3Questions: q3Done,
+      allComplete: q1Done && q2Done && q3Done,
+      missingParts: missingParts,
+      progressPercent: Math.round((doneCount / 3) * 100)
+    };
+  }
+
+  // 补全缺失的 Q1（知识图谱）
+  static async fillQ1KnowledgeGraph(courseId: string, question: string): Promise<boolean> {
+    try {
+      await KnowledgeBaseService.generateKnowledgeGraph(courseId, question);
+      await CourseService.updateProgress(courseId, 1);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 补全缺失的 Q2（争议点）
+  static async fillQ2Controversies(courseId: string, question: string): Promise<boolean> {
+    try {
+      await KnowledgeBaseService.discoverControversies(courseId, question);
+      await CourseService.updateProgress(courseId, 2);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 补全缺失的 Q3（测评题）
+  static async fillQ3Questions(courseId: string, content: string): Promise<boolean> {
+    try {
+      await AssessmentService.generateQuestions(courseId, content, 1, 5);
+      await CourseService.updateProgress(courseId, 3);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+}

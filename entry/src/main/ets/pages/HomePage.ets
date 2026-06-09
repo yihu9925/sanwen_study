@@ -4,6 +4,7 @@ import { promptAction } from '@kit.ArkUI';
 import { Course } from '../models/Course';
 import { CourseService } from '../services/CourseService';
 import { LLMService } from '../services/LLMService';
+import { CourseHealthService, CourseContentStatus } from '../services/CourseHealthService';
 import { AppRouter } from '../AppRouter';
 import { getTimeAgo } from '../utils/DateUtils';
 
@@ -19,10 +20,22 @@ export struct HomePage {
     this.loadCourses();
   }
 
+  @State courseHealthMap: Record<string, CourseContentStatus> = {};
+
   async loadCourses(): Promise<void> {
     try {
       this.pageState = 'loading';
       this.courses = await CourseService.getCoursesByUser(this.userId);
+      // 检测每个课程的内容健康状态
+      const healthMap: Record<string, CourseContentStatus> = {};
+      for (const c of this.courses) {
+        try {
+          healthMap[c.id] = await CourseHealthService.checkCourseStatus(c.id);
+        } catch (e) {
+          // skip for individual course
+        }
+      }
+      this.courseHealthMap = healthMap;
       this.pageState = this.courses.length > 0 ? 'content' : 'empty';
     } catch (error) {
       this.pageState = 'error';
@@ -264,7 +277,22 @@ export struct HomePage {
 
       // 底部操作栏：时间 + 操作按钮
       Row() {
-        Text(getTimeAgo(course.lastAccessedAt))
+        // 内容健康状态（通过方法判断避免Builder内写逻辑）
+      if (this.courseHealthMap[course.id]) {
+        Row() {
+          if (this.courseHealthMap[course.id].allComplete) {
+            Text('\u2714\ufe0f').fontSize(10).fontColor('#4CAF50').margin({ right: 2 });
+            Text('\u4e09\u95ee\u5b8c\u6574').fontSize(10).fontColor('#4CAF50');
+          } else {
+            Text('\u26a0\ufe0f').fontSize(10).fontColor('#FF9800').margin({ right: 2 });
+            Text('\u7f3a' + this.courseHealthMap[course.id].missingParts.join('\u3001'))
+              .fontSize(10).fontColor('#FF9800');
+          }
+        }
+        .margin({ top: 2 });
+      }
+
+      Text(getTimeAgo(course.lastAccessedAt))
           .fontSize(12)
           .fontColor('#CCCCCC')
           .layoutWeight(1);

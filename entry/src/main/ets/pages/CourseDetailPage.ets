@@ -13,6 +13,7 @@ import { LLMService } from '../services/LLMService';
 import { relationalStore } from '@kit.ArkData';
 import { AppRouter } from '../AppRouter';
 import { EventBus, EVENTS } from '../utils/EventBus';
+import { CourseHealthService, CourseContentStatus } from '../services/CourseHealthService';
 import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
@@ -28,6 +29,8 @@ struct CourseDetailPage {
   @State questions: Question[] = [];
   @State documents: Document[] = [];
   @State isLoading: boolean = false;
+  @State contentStatus: CourseContentStatus | null = null;
+  @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -115,6 +118,43 @@ struct CourseDetailPage {
 
   async loadDocuments(): Promise<void> {
     this.documents = await KnowledgeBaseService.getDocuments(this.courseId);
+  }
+
+  // 补全缺失的某一问
+  async fillMissingPart(part: number): Promise<void> {
+    if (!this.course || this.isFilling > 0) return;
+    this.isFilling = part;
+    try {
+      const question = this.course.question;
+      let success = false;
+      const labels: Record<number, string> = { 1: '\u77e5\u8bc6\u56fe\u8c31', 2: '\u4e89\u8bae\u70b9\u5206\u6790', 3: '\u6d4b\u8bc4\u9898' };
+      promptAction.showToast({ message: '\u6b63\u5728\u751f\u6210' + (labels[part] || '') + '...' });
+
+      if (part === 1) {
+        success = await CourseHealthService.fillQ1KnowledgeGraph(this.courseId, question);
+        await this.loadKnowledgeGraph();
+      } else if (part === 2) {
+        success = await CourseHealthService.fillQ2Controversies(this.courseId, question);
+        await this.loadControversies();
+      } else if (part === 3) {
+        success = await CourseHealthService.fillQ3Questions(this.courseId, question);
+        await this.loadQuestions();
+      }
+
+      // 重新检测状态
+      this.contentStatus = await CourseHealthService.checkCourseStatus(this.courseId);
+      this.course = await CourseService.getCourseById(this.courseId);
+
+      if (success) {
+        promptAction.showToast({ message: (labels[part] || '') + '\u751f\u6210\u5b8c\u6210\uff01' });
+      } else {
+        promptAction.showToast({ message: (labels[part] || '') + '\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 API \u914d\u7f6e' });
+      }
+    } catch (e) {
+      promptAction.showToast({ message: '\u586b\u8865\u5931\u8d25' });
+    } finally {
+      this.isFilling = 0;
+    }
   }
 
   async generateContent(): Promise<void> {
@@ -214,6 +254,9 @@ struct CourseDetailPage {
       // 顶部标题栏
       this.HeaderBar();
 
+      // 内容健康状态栏
+      this.ContentHealthBar();
+
       // Tab栏
       this.TabBar();
 
@@ -279,6 +322,74 @@ struct CourseDetailPage {
         .margin({ left: 4 });
     }
     .layoutWeight(1).justifyContent(FlexAlign.Center);
+  }
+
+  // 三问内容健康检测状态栏
+  @Builder
+  ContentHealthBar(): void {
+    Column() {
+      if (this.contentStatus) {
+        Row() {
+          // Q1 状态
+          this.HealthChip('\u7b2c\u4e00\u95ee', this.contentStatus.q1KnowledgeGraph, 1);
+          // Q2 状态
+          this.HealthChip('\u7b2c\u4e8c\u95ee', this.contentStatus.q2Controversies, 2);
+          // Q3 状态
+          this.HealthChip('\u7b2c\u4e09\u95ee', this.contentStatus.q3Questions, 3);
+        }
+        .width('100%').justifyContent(FlexAlign.Center).padding({ top: 4, bottom: 4 });
+
+        // 如果缺失，显示提示
+        if (!this.contentStatus.allComplete) {
+          Row() {
+            Text('\u26a0\ufe0f' + this.contentStatus.missingParts.join('\u3001') + '\u5c1a\u672a\u751f\u6210')
+              .fontSize(11).fontColor('#FF9800');
+          }
+          .width('100%').justifyContent(FlexAlign.Center);
+        } else {
+          Row() {
+            Text('\u2714\ufe0f \u4e09\u95ee\u5185\u5bb9\u5df2\u5b8c\u6574')
+              .fontSize(11).fontColor('#4CAF50');
+          }
+          .width('100%').justifyContent(FlexAlign.Center);
+        }
+      }
+    }
+    .width('100%').padding({ left: 12, right: 12, top: 2, bottom: 2 });
+  }
+
+  // 单个健康状态芯片
+  @Builder
+  HealthChip(label: string, done: boolean, part: number): void {
+    Row() {
+      Row()
+        .width(8).height(8)
+        .backgroundColor(done ? '#4CAF50' : '#FF9800')
+        .borderRadius(4);
+
+      Text(label + (done ? ' \u2713' : '!'))
+        .fontSize(12).fontColor(done ? '#4CAF50' : '#FF9800')
+        .margin({ left: 4 });
+
+      if (!done && this.isFilling !== part) {
+        Text('\u586b\u8865')
+          .fontSize(10).fontColor(Color.White)
+          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          .backgroundColor('#007DFF').borderRadius(8)
+          .margin({ left: 4 })
+          .onClick(() => {
+            this.fillMissingPart(part);
+          });
+      }
+
+      if (this.isFilling === part) {
+        LoadingProgress().width(12).height(12).margin({ left: 4 });
+      }
+    }
+    .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+    .backgroundColor(done ? '#E8F5E9' : '#FFF3E0')
+    .borderRadius(12)
+    .margin({ left: 4, right: 4 });
   }
 
   @Builder

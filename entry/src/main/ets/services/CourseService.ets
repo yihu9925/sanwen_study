@@ -242,4 +242,41 @@ export class CourseService {
       return getDefaultRadarData();
     }
   }
+
+
+  // 更新单问进度
+  static async updateProgress(courseId: string, qNum: number): Promise<void> {
+    const predicates = new relationalStore.RdbPredicates('course');
+    predicates.equalTo('id', courseId);
+    const store = RelationalStoreManager.getStore();
+
+    // 读取当前进度
+    const qField = 'progress_q' + qNum;
+    const updateBucket: relationalStore.ValuesBucket = {};
+    updateBucket[qField] = 1;
+
+    // 重新计算总进度
+    const allPredicates = new relationalStore.RdbPredicates('course');
+    allPredicates.equalTo('id', courseId);
+    const rs = await store.query(allPredicates);
+    let p1 = 0; let p2 = 0; let p3 = 0;
+    if (rs.goToNextRow()) {
+      p1 = rs.getLong(5);  // progress_q1
+      p2 = rs.getLong(6);  // progress_q2
+      p3 = rs.getLong(7);  // progress_q3
+    }
+    rs.close();
+
+    if (qNum === 1) p1 = 1;
+    else if (qNum === 2) p2 = 1;
+    else if (qNum === 3) p3 = 1;
+
+    const total = p1 + p2 + p3;
+    const percent = Math.round((total / 3) * 100);
+    updateBucket['progress_percent'] = percent;
+    updateBucket['status'] = (percent === 100 ? 'completed' : 'active');
+    updateBucket['updated_at'] = new Date().toISOString();
+
+    await store.update(updateBucket, predicates);
+  }
 }
