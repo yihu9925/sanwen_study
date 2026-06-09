@@ -11,6 +11,7 @@ export struct RadarChartView {
     evaluate: 0,
     create: 0
   };
+  @Prop forceRedraw: number = 0;
   private canvasSize: number = 300;
   private centerX: number = 150;
   private centerY: number = 150;

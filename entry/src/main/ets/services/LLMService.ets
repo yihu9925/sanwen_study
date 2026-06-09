@@ -101,12 +101,12 @@ export class LLMService {
       if (truncatedContent.length > 3000) {
         truncatedContent = truncatedContent.substring(0, 3000);
       }
-      const prompt = 'Based on the following content, extract core concepts and their relationships.\n' +
-        'Return JSON format: {"nodes":[{"label":"name","importance":1-5}],"edges":[{"from":0,"to":1,"label":"relation"}]}\n' +
-        'Content: ' + truncatedContent;
+      const prompt = '\u8bf7\u6839\u636e\u4ee5\u4e0b\u8d44\u6599\u63d0\u53d6\u6838\u5fc3\u6982\u5ff5\u53ca\u5176\u5173\u7cfb\uff0c\u751f\u6210\u77e5\u8bc6\u56fe\u8c31\u3002\n' +
+        '\u4ee5JSON\u683c\u5f0f\u8fd4\u56de\uff1a{\"nodes\":[{\"label\":\"\u6982\u5ff5\u540d\",\"importance\":1-5,\"description\":\"\u7b80\u8981\u8bf4\u660e\"}],\"edges\":[{\"from\":0,\"to\":1,\"label\":\"\u5173\u7cfb\u7c7b\u578b\"}]}\n' +
+        '\u8d44\u6599\uff1a' + truncatedContent;
 
       const result = await LLMService.callLLM(
-        'You are a knowledge graph expert. Return ONLY valid JSON.',
+        '\u4f60\u662f\u77e5\u8bc6\u56fe\u8c31\u4e13\u5bb6\uff0c\u53ea\u8fd4\u56de\u6709\u6548\u7684JSON\u3002',
         prompt,
         'json'
       );
@@ -205,13 +205,14 @@ export class LLMService {
         0: 'Remember', 1: 'Understand', 2: 'Apply',
         3: 'Analyze', 4: 'Evaluate', 5: 'Create'
       };
-      const levelName = levelNames[bloomLevel] || '';
-      const prompt = 'Generate ' + count + ' assessment questions at Bloom level: ' + levelName + '.\n' +
-        'Return JSON array: [{"questionText":"...","options":["A","B","C","D"],"correctAnswer":"A","explanation":"...","difficulty":1-5}]\n' +
-        'Content: ' + truncatedContent;
+      const levelChinese: string = levelNames[bloomLevel] || '';
+      const prompt = '\u8bf7\u6839\u636e\u4ee5\u4e0b\u8d44\u6599\u751f\u6210' + count + '\u9053\u5e03\u9c81\u59c6\u8ba4\u77e5\u5c42\u7ea7\u4e3a\u201c' + levelChinese + '\u201d\u7684\u4e2d\u6587\u5f00\u653e\u5f0f\u9898\u76ee\uff0c\u8981\u6c42\u5b66\u751f\u81ea\u7531\u8f93\u5165\u56de\u7b54\u800c\u975e\u9009\u62e9\u3002\n' +
+        '\u4ee5JSON\u6570\u7ec4\u683c\u5f0f\u8fd4\u56de\uff1a[{\"questionText\":\"\u4e2d\u6587\u9898\u76ee\u5185\u5bb9\",\"correctAnswer\":\"\u53c2\u8003\u7b54\u6848\",\"explanation\":\"\u77e5\u8bc6\u70b9\u63d0\u793a\",\"difficulty\":1-5}]\n' +
+        '\u6ce8\u610f\uff1a\u9898\u76ee\u5fc5\u987b\u662f\u4e2d\u6587\uff0c\u4e0d\u8981\u52a0\u9009\u9879\uff08options\uff09\uff0c\u56e0\u4e3a\u662f\u5f00\u653e\u5f0f\u56de\u7b54\u3002\n' +
+        '\u8d44\u6599\uff1a' + truncatedContent;
 
       const result = await LLMService.callLLM(
-        'You are an education assessment expert. Return ONLY valid JSON array.',
+        '\u4f60\u662f\u6559\u80b2\u6d4b\u8bc4\u4e13\u5bb6\uff0c\u8bf7\u7528\u4e2d\u6587\u751f\u6210\u5f00\u653e\u5f0f\u9898\u76ee\uff0c\u53ea\u8fd4\u56de\u6709\u6548\u7684JSON\u6570\u7ec4\u3002',
         prompt,
         'json'
       );

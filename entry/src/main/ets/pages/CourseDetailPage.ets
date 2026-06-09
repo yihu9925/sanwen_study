@@ -776,7 +776,7 @@ struct CourseDetailPage {
         
         // 雷达图展示
         if (this.course) {
-          RadarChartView({ radarData: this.course.radarData })
+          RadarChartView({ radarData: this.course.radarData, forceRedraw: this.graphKey })
             .margin({ top: 16 });
         }
       }
