@@ -4,6 +4,7 @@ import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct KnowledgeHub {
+  @Prop @Watch('onRefreshKeyChange') refreshKey: number = 0;
   @StorageLink('userId') userId: string = '';
   @StorageLink('themeMode') themeMode: string = 'auto';
 
@@ -14,10 +15,13 @@ export struct KnowledgeHub {
   @State selectedDoc: DocWithCourse | null = null;
   @State showDocSheet: boolean = false;
   @State isLoading: boolean = true;
-  @State isRefreshing: boolean = false;
   @State errorMsg: string = '';
 
   aboutToAppear(): void {
+    this.loadData();
+  }
+
+  onRefreshKeyChange(): void {
     this.loadData();
   }
 
@@ -31,7 +35,6 @@ export struct KnowledgeHub {
       this.errorMsg = '\u52A0\u8F7D\u5931\u8D25';
     } finally {
       this.isLoading = false;
-      this.isRefreshing = false;
     }
   }
 

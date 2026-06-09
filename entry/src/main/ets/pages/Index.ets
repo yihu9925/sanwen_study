@@ -7,6 +7,7 @@ import { KnowledgeHub } from './KnowledgeHub';
 @Component
 struct Index {
   @State currentTabIndex: number = 0;
+  @State knowledgeHubRefresh: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
 
   build() {
@@ -17,7 +18,7 @@ struct Index {
       .tabBar('\u9996\u9875');
 
       TabContent() {
-        KnowledgeHub();
+        KnowledgeHub({ refreshKey: this.knowledgeHubRefresh });
       }
       .tabBar('\u77E5\u8BC6\u5E93');
 
@@ -31,6 +32,9 @@ struct Index {
     .barBackgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
     .onChange((index: number) => {
       this.currentTabIndex = index;
+      if (index === 1) {
+        this.knowledgeHubRefresh++;
+      }
     });
   }
 }

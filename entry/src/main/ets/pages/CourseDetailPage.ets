@@ -34,6 +34,11 @@ struct CourseDetailPage {
   @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
   @State graphKey: number = 0;   // 递增以强制刷新知识图谱组件
   @State radarKey: number = 0;   // 递增以强制刷新雷达图组件
+  @State expandedChapterId: string = '';   // 当前展开的章节卡片ID
+  @State selectedGraphNodeId: string = ''; // 选中聚焦的图节点ID
+  @State selectedDoc: Document | null = null;
+  @State showDocSheet: boolean = false;
+  private loadedOnce: boolean = false;
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -47,9 +52,10 @@ struct CourseDetailPage {
 
   // 从AssessmentDetailPage返回时全面刷新
   onPageShow(): void {
-    if (this.courseId) {
+    if (this.courseId && this.loadedOnce) {
       this.loadCourseData();
     }
+    this.loadedOnce = true;
   }
 
   aboutToDisappear(): void {
@@ -277,7 +283,12 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#F5F5F5');
+    .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#F5F5F5')
+    .bindSheet($$this.showDocSheet, this.DocSheet(), {
+      height: 500,
+      backgroundColor: this.themeMode === 'dark' ? '#333333' : Color.White,
+      dragBar: true
+    });
   }
 
   @Builder
@@ -647,13 +658,13 @@ struct CourseDetailPage {
                         .fontSize(11)
                         .fontColor('#007DFF')
                         .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                        .backgroundColor('#E6F7FF')
+                        .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
                         .borderRadius(4);
 
                       if (doc.keywords.length > 0) {
                         Text(doc.keywords.slice(0, 3).join(' / '))
                           .fontSize(11)
-                          .fontColor('#999999')
+                          .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
                           .margin({ left: 8 });
                       }
                     }
@@ -662,20 +673,15 @@ struct CourseDetailPage {
                   .layoutWeight(1)
                   .alignItems(HorizontalAlign.Start)
                   .margin({ left: 8 });
-
-                  // 序号圆标（限制宽度防止溢出）
-                  Text('' + (index + 1))
-                    .fontSize(12)
-                    .fontColor('#007DFF')
-                    .width(22).height(22)
-                    .textAlign(TextAlign.Center)
-                    .backgroundColor('#E6F7FF')
-                    .borderRadius(11);
                 }
                 .width('100%')
                 .padding(12)
-                .backgroundColor(Color.White)
-                .borderRadius(8);
+                .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                .borderRadius(8)
+                .onClick(() => {
+                  this.selectedDoc = this.documents[index];
+                  this.showDocSheet = true;
+                });
               }
               .margin({ bottom: 8 });
             });
@@ -781,13 +787,7 @@ struct CourseDetailPage {
     Scroll() {
       Column() {
         // 知识图谱可视化组件
-        KnowledgeGraphView({ graph: this.knowledgeGraph, forceRedraw: this.graphKey });
-        
-        // 雷达图展示
-        if (this.course) {
-          RadarChartView({ radarData: this.course.radarData, forceRedraw: this.radarKey })
-            .margin({ top: 16 });
-        }
+        KnowledgeGraphView({ graph: this.knowledgeGraph, forceRedraw: this.graphKey, focusNodeId: this.selectedGraphNodeId });
 
         // 课程章节列表（基于知识图谱节点生成）
         if (this.knowledgeGraph.nodes.length > 0) {
@@ -801,45 +801,86 @@ struct CourseDetailPage {
             .padding(16);
 
             List() {
-              ForEach(this.knowledgeGraph.nodes, (node: GraphNode, index: number) => {
+              ForEach(this.knowledgeGraph.nodes, (node: GraphNode) => {
                 ListItem() {
-                  Row() {
-                    // 序号
-                    Text('' + (index + 1))
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Color.White)
-                      .width(28).height(28)
-                      .textAlign(TextAlign.Center)
-                      .backgroundColor(node.importance >= 5 ? '#007DFF' : (node.importance >= 3 ? '#52C41A' : '#FAAD14'))
-                      .borderRadius(14);
-
-                    // 节点名 + 描述
-                    Column() {
+                  Column() {
+                    // 卡片头部 - 点击聚焦图谱
+                    Row() {
                       Text(node.label)
                         .fontSize(16)
                         .fontWeight(FontWeight.Medium)
-                        .margin({ left: 12 });
+                        .layoutWeight(1);
 
-                      if (node.description) {
-                        Text(node.description)
-                          .fontSize(12)
-                          .fontColor('#999999')
-                          .margin({ left: 12, top: 2 })
-                          .maxLines(2)
-                          .textOverflow({ overflow: TextOverflow.Ellipsis });
-                      }
+                      Text(this.expandedChapterId === node.id ? '\u25bc' : '\u25b6')
+                        .fontSize(12)
+                        .fontColor('#CCCCCC');
                     }
-                    .layoutWeight(1)
-                    .alignItems(HorizontalAlign.Start);
+                    .width('100%')
+                    .padding(12)
+                    .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                    .borderRadius(this.expandedChapterId === node.id ? { topLeft: 8, topRight: 8 } : 8)
+                    .onClick(() => {
+                      this.selectedGraphNodeId = node.id;
+                      if (this.expandedChapterId === node.id) {
+                        this.expandedChapterId = '';
+                      } else {
+                        this.expandedChapterId = node.id;
+                      }
+                    });
 
-                    // 重要程度指示
-                    Text('\u2b50'.repeat(node.importance))
-                      .fontSize(10);
+                    // 展开内容
+                    if (this.expandedChapterId === node.id) {
+                      Column() {
+                        if (node.description) {
+                          Text(node.description)
+                            .fontSize(14)
+                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                            .lineHeight(22)
+                            .width('100%');
+                        }
+
+                        if (node.children.length > 0) {
+                          Text('\u5173\u8054\u5B50\u6982\u5FF5')
+                            .fontSize(13)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                            .margin({ top: 12, bottom: 6 });
+
+                          ForEach(node.children, (child: GraphNode) => {
+                            Row() {
+                              Circle().width(6).height(6).fill('#52C41A');
+                              Text(child.label)
+                                .fontSize(13)
+                                .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                                .margin({ left: 6 });
+                            }
+                            .width('100%')
+                            .margin({ top: 2 });
+                          });
+                        }
+
+                        if (node.relatedDocs.length > 0) {
+                          Text('\u53C2\u8003\u8D44\u6599')
+                            .fontSize(13)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                            .margin({ top: 12, bottom: 6 });
+
+                          ForEach(node.relatedDocs, (docId: string) => {
+                            Text('\uD83D\uDCC4 \u8D44\u6599 ' + docId)
+                              .fontSize(13)
+                              .fontColor('#007DFF')
+                              .margin({ top: 2 });
+                          });
+                        }
+                      }
+                      .width('100%')
+                      .padding({ left: 16, right: 16, bottom: 14, top: 4 })
+                      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#FAFAFA')
+                      .borderRadius({ bottomLeft: 8, bottomRight: 8 });
+                    }
                   }
                   .width('100%')
-                  .padding(12)
-                  .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
                   .borderRadius(8);
                 }
                 .margin({ bottom: 6 });
@@ -880,29 +921,29 @@ struct CourseDetailPage {
 
   @Builder
   AssessmentTab(): void {
-    Column() {
-      if (this.questions.length === 0) {
-        Column() {
-          Text('📝')
-            .fontSize(64);
-          
-          Text('AI正在生成测评题...')
-            .fontSize(16)
-            .fontColor('#999999')
-            .margin({ top: 16 });
+    Scroll() {
+      Column() {
+        if (this.questions.length === 0) {
+          Column() {
+            Text('📝')
+              .fontSize(64);
+            
+            Text('AI正在生成测评题...')
+              .fontSize(16)
+              .fontColor('#999999')
+              .margin({ top: 16 });
 
-          Button('重新生成')
-            .fontSize(14)
-            .margin({ top: 12 })
-            .onClick(() => {
-              this.generateContent();
-            });
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center);
-      } else {
-        Column() {
+            Button('重新生成')
+              .fontSize(14)
+              .margin({ top: 12 })
+              .onClick(() => {
+                this.generateContent();
+              });
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center);
+        } else {
           List() {
             ForEach(this.questions, (question: Question, index: number) => {
               ListItem() {
@@ -911,7 +952,6 @@ struct CourseDetailPage {
                     .fontSize(16)
                     .fontWeight(FontWeight.Bold);
 
-                  // 开放式题目：显示布鲁姆层级+难度，不显示选项
                   Row() {
                     Text('\u5e03\u9c81\u59c6\u5c42\u7ea7: ' + getBloomLevelName(question.bloomLevel))
                       .fontSize(12).fontColor('#007DFF')
@@ -924,28 +964,70 @@ struct CourseDetailPage {
                 }
                 .width('100%')
                 .padding(16)
-                .backgroundColor(Color.White)
+                .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
                 .borderRadius(8);
               }
               .margin({ bottom: 8 });
             });
           }
           .width('100%')
-          .layoutWeight(1)
+          .height(300)
           .padding(16);
+
+          if (this.course) {
+            RadarChartView({ radarData: this.course.radarData, forceRedraw: this.radarKey })
+              .margin({ top: 16 });
+          }
 
           Button('开始答题')
             .width('80%')
-            .margin({ bottom: 16 })
+            .margin({ top: 16, bottom: 24 })
             .onClick(() => {
               AppRouter.toAssessmentDetail(this.courseId);
             });
         }
+      }
+      .width('100%');
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .scrollBar(BarState.Auto);
+  }
+
+  @Builder
+  DocSheet(): void {
+    Column() {
+      if (this.selectedDoc) {
+        Row() {
+          Text(this.selectedDoc.title)
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .layoutWeight(1);
+
+          Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u8865\u5145' : '\u7528\u6237\u4E0A\u4F20')
+            .fontSize(11).fontColor('#007DFF')
+            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
+            .borderRadius(4);
+        }
         .width('100%')
-        .layoutWeight(1);
+        .padding(16);
+
+        Divider();
+
+        Scroll() {
+          Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
+            .fontSize(14)
+            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#666666')
+            .lineHeight(22)
+            .width('100%');
+        }
+        .layoutWeight(1)
+        .padding(16)
+        .scrollBar(BarState.Auto);
       }
     }
     .width('100%')
-    .layoutWeight(1);
+    .height('100%');
   }
 }
