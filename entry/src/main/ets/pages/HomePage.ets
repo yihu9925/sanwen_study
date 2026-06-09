@@ -277,7 +277,7 @@ export struct HomePage {
 
       // 底部操作栏：时间 + 操作按钮
       Row() {
-        // 内容健康状态（通过方法判断避免Builder内写逻辑）
+        // 内容健康状态（点击跳转到课程详情自动触发补全）
       if (this.courseHealthMap[course.id]) {
         Row() {
           if (this.courseHealthMap[course.id].allComplete) {
@@ -289,7 +289,11 @@ export struct HomePage {
               .fontSize(10).fontColor('#FF9800');
           }
         }
-        .margin({ top: 2 });
+        .margin({ top: 2 })
+        .onClick(() => {
+          // 点击缺䃍提示直接跳转到课程详情页，详情页会自动检测并提示䃍充
+          AppRouter.toCourseDetail(course.id);
+        });
       }
 
       Text(getTimeAgo(course.lastAccessedAt))
