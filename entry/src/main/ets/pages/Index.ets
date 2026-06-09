@@ -6,19 +6,19 @@ import { KnowledgeHub } from './KnowledgeHub';
 @Entry
 @Component
 struct Index {
-  @State currentTabIndex: number = 0;
-  @State knowledgeHubRefresh: number = 0;
+  @StorageLink('activeTabIndex') activeTabIndex: number = 0;
+  @StorageLink('knowledgeHubRefreshKey') knowledgeHubRefreshKey: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
 
   build() {
-    Tabs({ barPosition: BarPosition.End }) {
+    Tabs({ barPosition: BarPosition.End, index: this.activeTabIndex }) {
       TabContent() {
         HomePage();
       }
       .tabBar('\u9996\u9875');
 
       TabContent() {
-        KnowledgeHub({ refreshKey: this.knowledgeHubRefresh });
+        KnowledgeHub();
       }
       .tabBar('\u77E5\u8BC6\u5E93');
 
@@ -31,9 +31,9 @@ struct Index {
     .height('100%')
     .barBackgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
     .onChange((index: number) => {
-      this.currentTabIndex = index;
+      this.activeTabIndex = index;
       if (index === 1) {
-        this.knowledgeHubRefresh++;
+        this.knowledgeHubRefreshKey++;
       }
     });
   }

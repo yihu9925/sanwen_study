@@ -4,7 +4,8 @@ import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct KnowledgeHub {
-  @Prop @Watch('onRefreshKeyChange') refreshKey: number = 0;
+  @StorageLink('knowledgeHubRefreshKey') @Watch('onRefreshKeyChange') refreshKey: number = 0;
+  @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('userId') userId: string = '';
   @StorageLink('themeMode') themeMode: string = 'auto';
 
@@ -213,7 +214,7 @@ export struct KnowledgeHub {
         .fontSize(14)
         .margin({ top: 16 })
         .onClick(() => {
-          router.pushUrl({ url: 'pages/HomePage' });
+          this.activeTabIndex = 0;
         });
     }
     .width('100%')
