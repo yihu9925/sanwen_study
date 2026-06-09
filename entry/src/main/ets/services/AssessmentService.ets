@@ -2,9 +2,23 @@
 // 核心变更：选择题对比 → 自由输入 + LLM评判
 import { relationalStore } from '@kit.ArkData';
 import { Question, BloomLevel, AiEvaluation } from '../models/Question';
+import { RadarData } from '../models/Course';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { LLMService } from './LLMService';
 import { generateUUID } from '../utils/UUID';
+
+// 提交自由答案返回结果
+export interface SubmitFreeAnswerResult {
+  isCorrect: boolean;
+  score: number;
+  evaluation: AiEvaluation;
+}
+
+// 雷达图数据更新条目
+export interface LevelStatItem {
+  level: BloomLevel;
+  averageScore: number;
+}
 
 export class AssessmentService {
   // 生成测评题（开放题模式）
@@ -25,18 +39,17 @@ export class AssessmentService {
       question.courseId = courseId;
       question.questionType = 'open';
 
-      const valueBucket: relationalStore.ValuesBucket = {
-        'id': question.id,
-        'course_id': courseId,
-        'bloom_level': question.bloomLevel,
-        'question_text': question.questionText,
-        'options': JSON.stringify(question.options),
-        'correct_answer': question.correctAnswer,
-        'explanation': question.explanation,
-        'difficulty': question.difficulty,
-        'question_type': 'open',
-        'created_at': now
-      };
+      const valueBucket: relationalStore.ValuesBucket = {};
+      valueBucket['id'] = question.id;
+      valueBucket['course_id'] = courseId;
+      valueBucket['bloom_level'] = question.bloomLevel;
+      valueBucket['question_text'] = question.questionText;
+      valueBucket['options'] = JSON.stringify(question.options);
+      valueBucket['correct_answer'] = question.correctAnswer;
+      valueBucket['explanation'] = question.explanation;
+      valueBucket['difficulty'] = question.difficulty;
+      valueBucket['question_type'] = 'open';
+      valueBucket['created_at'] = now;
 
       await store.insert('question', valueBucket);
     }
@@ -77,7 +90,7 @@ export class AssessmentService {
     courseId: string,
     question: Question,
     userAnswerText: string
-  ): Promise<{ isCorrect: boolean; score: number; evaluation: AiEvaluation }> {
+  ): Promise<SubmitFreeAnswerResult> {
     // 1. 获取LLM评判
     const evaluation = await LLMService.evaluateUserAnswer(question, userAnswerText);
     const isCorrect = evaluation.score >= 60;
@@ -102,19 +115,23 @@ export class AssessmentService {
     };
     await store.insert('learning_record', recordValueBucket);
 
-    return { isCorrect, score: evaluation.score, evaluation };
+    const result: SubmitFreeAnswerResult = { isCorrect, score: evaluation.score, evaluation };
+    return result;
   }
 
   // 更新雷达数据（基于测评结果）
   static async updateRadarData(
     courseId: string,
-    levelStats: Array<{ level: BloomLevel; averageScore: number }>
+    levelStats: LevelStatItem[]
   ): Promise<void> {
     const store = RelationalStoreManager.getStore();
-    const radarData: Record<string, number> = {
-      remember: 0, understand: 0, apply: 0,
-      analyze: 0, evaluate: 0, create: 0
-    };
+    const radarData: Record<string, number> = {};
+    radarData['remember'] = 0;
+    radarData['understand'] = 0;
+    radarData['apply'] = 0;
+    radarData['analyze'] = 0;
+    radarData['evaluate'] = 0;
+    radarData['create'] = 0;
 
     for (const stat of levelStats) {
       const key = AssessmentService.getRadarKey(stat.level);

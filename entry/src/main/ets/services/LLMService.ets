@@ -227,7 +227,8 @@ export class LLMService {
           options: (q['options'] as string[]) || ['A', 'B', 'C', 'D'],
           correctAnswer: (q['correctAnswer'] as string) || 'A',
           explanation: (q['explanation'] as string) || '',
-          difficulty: q['difficulty'] as number || 3
+          difficulty: q['difficulty'] as number || 3,
+          questionType: 'open'
         });
       }
       return questions;
@@ -335,7 +336,8 @@ export class LLMService {
         options: ['A: Correct answer', 'B: Option', 'C: Option', 'D: Option'],
         correctAnswer: 'A',
         explanation: 'This is the correct answer because...',
-        difficulty: 3
+        difficulty: 3,
+        questionType: 'open'
       });
     }
     return questions;

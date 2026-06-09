@@ -275,9 +275,13 @@ export struct HomePage {
             .fontSize(11).fontColor('#999999')
             .height(26).borderRadius(13)
             .backgroundColor('#F5F5F5').margin({ left: 4 })
-            .onClick(async (event: ClickEvent) => {
-              event.stopPropagation();
-              await CourseService.archiveCourse(course.id);
+            .onClick(() => {
+              CourseService.deleteCourse(course.id).then(() => {
+                promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
+                this.loadCourses();
+              }).catch(() => {
+                promptAction.showToast({ message: '\u5f52\u6863\u5931\u8d25' });
+              });
               promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
               this.loadCourses();
             });
@@ -288,8 +292,7 @@ export struct HomePage {
           .fontSize(11).fontColor('#FF4D4F')
           .height(26).borderRadius(13)
           .backgroundColor('#FFF1F0').margin({ left: 4 })
-          .onClick(async (event: ClickEvent) => {
-            event.stopPropagation();
+          .onClick(() => {
             promptAction.showDialog({
               title: '\u786e\u8ba4\u5220\u9664',
               message: '\u786e\u5b9a\u8981\u5220\u9664\u300c' + course.title + '\u300d\u5417\uff1f\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002',

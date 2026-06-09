@@ -8,6 +8,12 @@ import { AssessmentService } from '../services/AssessmentService';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
 import { AppRouter } from '../AppRouter';
 
+// 测评统计条目
+interface AssessmentLevelStat {
+  level: BloomLevel;
+  averageScore: number;
+}
+
 @Entry
 @Component
 struct AssessmentDetailPage {
@@ -92,6 +98,10 @@ struct AssessmentDetailPage {
     try {
       // 按布鲁姆维度计算平均分
       const levelScores: Record<number, number[]> = {};
+      // Initialize all levels
+      for (let lvInit = 1; lvInit <= 6; lvInit++) {
+        levelScores[lvInit] = [];
+      }
       for (const detail of this.answerDetails) {
         const lv = detail.bloomLevel;
         if (!levelScores[lv]) {
@@ -99,13 +109,14 @@ struct AssessmentDetailPage {
         }
         levelScores[lv].push(detail.score);
       }
-      const levelStats: Array<{ level: BloomLevel; averageScore: number }> = [];
+      const levelStats: AssessmentLevelStat[] = [];
       for (let lv = 1; lv <= 6; lv++) {
         const scores = levelScores[lv] || [];
         const avg = scores.length > 0
           ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
           : 0;
-        levelStats.push({ level: lv as BloomLevel, averageScore: avg });
+        const item: AssessmentLevelStat = { level: lv as BloomLevel, averageScore: avg };
+        levelStats.push(item);
       }
       await AssessmentService.updateRadarData(this.courseId, levelStats);
     } catch (e) {

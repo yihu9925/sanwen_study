@@ -1,6 +1,7 @@
 // 第三问：深度测评（独立页面 - 题目概览+答题入口）
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
+import { relationalStore } from '@kit.ArkData';
 import { Question, BloomLevel, getBloomLevelName } from '../models/Question';
 import { AssessmentService } from '../services/AssessmentService';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
