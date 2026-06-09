@@ -135,6 +135,22 @@ export class RelationalStoreManager {
     await RelationalStoreManager.rdbStore.executeSql(SQL_CREATE_LEARNING_RECORD);
     await RelationalStoreManager.rdbStore.executeSql(SQL_CREATE_USER_PROFILE);
     
+    // 数据库迁移：为旧表添加新列（如果已存在则静默跳过）
+    const migrations: string[] = [
+      'ALTER TABLE question ADD COLUMN question_type TEXT NOT NULL DEFAULT \'open\'',
+      'ALTER TABLE learning_record ADD COLUMN user_answer_text TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE learning_record ADD COLUMN ai_evaluation TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE learning_record ADD COLUMN score INTEGER NOT NULL DEFAULT 0',
+    ];
+    for (const migrationSql of migrations) {
+      try {
+        await RelationalStoreManager.rdbStore.executeSql(migrationSql);
+      } catch (e) {
+        // 列已存在或其他错误，静默跳过
+        console.info('Migration skip (column may already exist): ' + migrationSql);
+      }
+    }
+    
     // 创建索引
     await RelationalStoreManager.rdbStore.executeSql('CREATE INDEX IF NOT EXISTS idx_course_user ON course(user_id)');
     await RelationalStoreManager.rdbStore.executeSql('CREATE INDEX IF NOT EXISTS idx_course_status ON course(status)');
