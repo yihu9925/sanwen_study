@@ -32,7 +32,8 @@ struct CourseDetailPage {
   @StorageLink('themeMode') themeMode: string = 'auto';
   @State contentStatus: CourseContentStatus | null = null;
   @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
-  @State graphKey: number = 0;  // 递增以强制刷新知识图谱组件
+  @State graphKey: number = 0;   // 递增以强制刷新知识图谱组件
+  @State radarKey: number = 0;   // 递增以强制刷新雷达图组件
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -108,7 +109,8 @@ struct CourseDetailPage {
 
   async loadKnowledgeGraph(): Promise<void> {
     this.knowledgeGraph = await KnowledgeBaseService.getKnowledgeGraph(this.courseId);
-    this.graphKey++;  // 触发KnowledgeGraphView重建
+    this.graphKey++;   // 触发知识图谱Canvas重建
+    this.radarKey++;   // 触发雷达图Canvas重建（雷达数据可能一起更新）
   }
 
   async loadControversies(): Promise<void> {
@@ -776,7 +778,7 @@ struct CourseDetailPage {
         
         // 雷达图展示
         if (this.course) {
-          RadarChartView({ radarData: this.course.radarData, forceRedraw: this.graphKey })
+          RadarChartView({ radarData: this.course.radarData, forceRedraw: this.radarKey })
             .margin({ top: 16 });
         }
       }

@@ -45,21 +45,17 @@ export struct KnowledgeGraphView {
         .hitTestBehavior(HitTestMode.Block)
         .width(this.canvasWidth)
         .height(this.canvasHeight) {
-        // 使用forceRedraw作为key，变化时重建Canvas触发onReady
-        if (this.forceRedraw >= 0) {
-          Canvas(this.context)
-            .width(this.canvasWidth)
-            .height(this.canvasHeight)
-            .backgroundColor('#FAFAFA')
-            .borderRadius(8)
-            .onReady(() => {
-              this.context = this.context; // 确保上下文
-              this.drawGraph();
-            })
-            .onTouch((event: TouchEvent) => {
-              this.handleTouch(event);
-            });
-        }
+        Canvas(this.context)
+          .width(this.canvasWidth)
+          .height(this.canvasHeight)
+          .backgroundColor('#FAFAFA')
+          .borderRadius(8)
+          .onReady(() => {
+            this.drawGraph();
+          })
+          .onTouch((event: TouchEvent) => {
+            this.handleTouch(event);
+          });
 
         // 右侧缩放按钮
         Column() {
