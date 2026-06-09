@@ -723,15 +723,30 @@ export class LLMService {
   // Mock documents based on question complexity
   private static mockDocuments(question: string): DocSuggestion[] {
     const shortContent: string = question.length > 15 ? question.substring(0, 15) : (question || '\u901a\u7528\u77e5\u8bc6');
-    const topics: string[] = [
+    const q: string = question.toLowerCase();
+    const isCodeRelated: boolean = q.indexOf('code') >= 0 || q.indexOf('program') >= 0 ||
+      q.indexOf('python') >= 0 || q.indexOf('java') >= 0 || q.indexOf('javascript') >= 0 ||
+      q.indexOf('swift') >= 0 || q.indexOf('function') >= 0 || q.indexOf('class') >= 0 ||
+      q.indexOf('def ') >= 0 || q.indexOf('\u53d8\u91cf') >= 0 || q.indexOf('\u51fd\u6570') >= 0 ||
+      q.indexOf('\u7f16\u7a0b') >= 0 || q.indexOf('\u4ee3\u7801') >= 0 || q.indexOf('\u7b97\u6cd5') >= 0;
+
+    const topics: string[] = isCodeRelated ? [
+      shortContent + '\u57fa\u7840\u8bed\u6cd5',
+      shortContent + '\u5b9e\u6218\u6848\u4f8b',
+      shortContent + '\u5e38\u89c1\u95ee\u9898'
+    ] : [
       shortContent + '\u57fa\u7840\u6982\u5ff5\u4ecb\u7ecd',
       shortContent + '\u6df1\u5165\u5206\u6790\u4e0e\u5e94\u7528',
       shortContent + '\u7814\u7a76\u8d8b\u52bf\u4e0e\u524d\u6cbf',
     ];
-    const contents: string[] = [
+    const contents: string[] = isCodeRelated ? [
+      shortContent + '\u7684\u57fa\u7840\u8bed\u6cd5\u4ecb\u7ecd\uff1a\u4ee5\u4e0b\u662f\u793a\u4f8b\u4ee3\u7801\u3002\n[CODE]\n# \u57fa\u7840\u8bed\u6cd5\u793a\u4f8b\nfor i in range(5):\n    print(i)\n[/CODE]\n\u4ee5\u4e0a\u4ee3\u7801\u5c55\u793a\u4e86\u5faa\u73af\u8bed\u53e5\u7684\u57fa\u672c\u7528\u6cd5\u3002',
+      shortContent + '\u7684\u5b9e\u6218\u6848\u4f8b\u5206\u6790\u3002\n[CODE]\ndef calculate(data):\n    result = []\n    for item in data:\n        if item > 0:\n            result.append(item * 2)\n    return result\n[/CODE]\n\u8be5\u6848\u4f8b\u5c55\u793a\u4e86\u5982\u4f55\u5904\u7406\u6570\u636e\u5e76\u8fd4\u56de\u7ed3\u679c\u3002',
+      shortContent + '\u7684\u5e38\u89c1\u95ee\u9898\u4e0e\u89e3\u51b3\u3002\n[CODE]\ntry:\n    x = int(input())\n    print(\u8f93\u5165\uff1a\u201d + str(x))\nexcept ValueError:\n    print(\u8f93\u5165\u9519\u8bef\uff01\u201d)\n[/CODE]\n\u4ee5\u4e0a\u4ee3\u7801\u5904\u7406\u4e86\u7c7b\u578b\u8f6c\u6362\u5f02\u5e38\u3002'
+    ] : [
       shortContent + '\u7684\u6838\u5fc3\u6982\u5ff5\u57fa\u7840\uff1a\u672c\u8282\u4ecb\u7ecd' + shortContent + '\u7684\u5b9a\u4e49\u3001\u6838\u5fc3\u601d\u60f3\u3001\u57fa\u672c\u539f\u7406\u548c\u5173\u952e\u672f\u8bed\u3002\n\n\u5e2e\u52a9\u5b66\u4e60\u8005\u5feb\u901f\u5efa\u7acb\u77e5\u8bc6\u6846\u67b6\uff0c\u4e3a\u540e\u7eed\u6df1\u5165\u5b66\u4e60\u6253\u4e0b\u57fa\u7840\u3002',
       shortContent + '\u7684\u5e94\u7528\u573a\u666f\u4e0e\u5b9e\u8df5\uff1a\u672c\u8282\u901a\u8fc7\u5177\u4f53\u6848\u4f8b\u8bf4\u660e' + shortContent + '\u5728\u5b9e\u9645\u5de5\u4f5c\u548c\u7814\u7a76\u4e2d\u7684\u5e94\u7528\u65b9\u6cd5\u3002\n\n\u542b\u5e38\u89c1\u95ee\u9898\u89e3\u7b54\u548c\u5b9e\u6218\u6280\u5de7\uff0c\u5e2e\u52a9\u7406\u8bba\u8054\u7cfb\u5b9e\u9645\u3002',
-      shortContent + '\u7684\u5b66\u672f\u524d\u6cbf\u4e0e\u5c55\u671b\uff1a\u672c\u8282\u5173\u6ce8' + shortContent + '\u7684\u6700\u65b0\u7814\u7a76\u8fdb\u5c55\u3001\u4e0d\u540c\u5b66\u6d3e\u89c2\u70b9\u4e89\u8bae\u548c\u672a\u6765\u53d1\u5c55\u65b9\u5411\u3002\n\n\u57f9\u517b\u6279\u5224\u6027\u601d\u7ef4\uff0c\u5f00\u62d3\u5b66\u672f\u89c6\u91ce\u3002',
+      shortContent + '\u7684\u5b66\u672f\u524d\u6cbf\u4e0e\u5c55\u671b\uff1a\u672c\u8282\u5173\u6ce8' + shortContent + '\u7684\u6700\u65b0\u7814\u7a76\u8fdb\u5c55\u3001\u4e0d\u540c\u5b66\u6d3e\u89c2\u70b9\u4e89\u8bae\u548c\u672a\u6765\u53d1\u5c55\u65b9\u5411\u3002\n\n\u57f9\u517b\u6279\u5224\u6027\u601d\u7ef4\uff0c\u5f00\u62d3\u5b66\u672f\u89c6\u91ce\u3002'
     ];
     const docs: DocSuggestion[] = [];
     for (let i: number = 0; i < topics.length; i++) {
