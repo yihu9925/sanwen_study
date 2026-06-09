@@ -603,20 +603,47 @@ export class LLMService {
 
   // ===== Mock fallback =====
   private static mockIdentifyDomain(question: string): string {
-    if (question.indexOf('learn') >= 0 || question.indexOf('AI') >= 0) {
+    const q: string = question.toLowerCase();
+    if (q.indexOf('learn') >= 0 || q.indexOf('ai') >= 0 || q.indexOf('machine learning') >= 0 ||
+        q.indexOf('deep learning') >= 0 || q.indexOf('\u673a\u5668\u5b66\u4e60') >= 0 ||
+        q.indexOf('\u4eba\u5de5\u667a\u80fd') >= 0) {
       return 'Artificial Intelligence';
     }
-    if (question.indexOf('physics') >= 0 || question.indexOf('\u529b\u5b66') >= 0) {
+    if (q.indexOf('physics') >= 0 || q.indexOf('\u529b\u5b66') >= 0 || q.indexOf('\u7269\u7406') >= 0) {
       return 'Physics';
     }
-    if (question.indexOf('math') >= 0 || question.indexOf('\u5fae\u79ef\u5206') >= 0) {
+    if (q.indexOf('math') >= 0 || q.indexOf('\u5fae\u79ef\u5206') >= 0 || q.indexOf('\u6570\u5b66') >= 0) {
       return 'Mathematics';
     }
-    if (question.indexOf('chem') >= 0) {
+    if (q.indexOf('chem') >= 0 || q.indexOf('\u5316\u5b66') >= 0) {
       return 'Chemistry';
     }
-    if (question.indexOf('bio') >= 0) {
+    if (q.indexOf('bio') >= 0 || q.indexOf('\u751f\u7269') >= 0) {
       return 'Biology';
+    }
+    if (q.indexOf('code') >= 0 || q.indexOf('program') >= 0 || q.indexOf('python') >= 0 ||
+        q.indexOf('java') >= 0 || q.indexOf('javascript') >= 0 || q.indexOf('swift') >= 0 ||
+        q.indexOf('coding') >= 0 || q.indexOf('\u7f16\u7a0b') >= 0 ||
+        q.indexOf('\u4ee3\u7801') >= 0 || q.indexOf('\u8f6f\u4ef6') >= 0) {
+      return 'Coding';
+    }
+    if (q.indexOf('\u5e38\u8bc6') >= 0 || q.indexOf('\u751f\u6d3b') >= 0 || q.indexOf('\u65e5\u5e38') >= 0) {
+      return '\u5e38\u8bc6';
+    }
+    if (q.indexOf('history') >= 0 || q.indexOf('\u5386\u53f2') >= 0) {
+      return 'History';
+    }
+    if (q.indexOf('english') >= 0 || q.indexOf('\u82f1\u8bed') >= 0) {
+      return 'English';
+    }
+    if (q.indexOf('chinese') >= 0 || q.indexOf('\u8bed\u6587') >= 0) {
+      return '\u8bed\u6587';
+    }
+    if (q.indexOf('music') >= 0 || q.indexOf('\u97f3\u4e50') >= 0) {
+      return 'Music';
+    }
+    if (q.indexOf('art') >= 0 || q.indexOf('\u7f8e\u672f') >= 0) {
+      return 'Art';
     }
     return 'General Knowledge';
   }
