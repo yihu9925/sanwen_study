@@ -173,6 +173,33 @@ export struct KnowledgeHub {
   }
 
   @Builder
+  SegmentItem(seg: ContentSegment): void {
+    if (seg.type === 'code') {
+      Column() {
+        Text(seg.content)
+          .fontSize(14)
+          .fontFamily('Courier New')
+          .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+          .lineHeight(22)
+          .width('100%');
+      }
+      .width('100%')
+      .padding(12)
+      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+      .borderRadius(8)
+      .margin({ bottom: 12 });
+    } else {
+      Text(seg.content)
+        .fontSize(15)
+        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+        .lineHeight(26)
+        .width('100%')
+        .textIndent(32)
+        .margin({ bottom: 12 });
+    }
+  }
+
+  @Builder
   LoadingSkeleton(): void {
     Column() {
       ForEach([1, 2, 3] as number[], () => {
@@ -385,30 +412,15 @@ export struct KnowledgeHub {
             Divider().margin({ top: 16, bottom: 16 });
 
             ForEach(this.contentSegments, (seg: ContentSegment) => {
-              if (seg.type === 'code') {
-                Column() {
-                  Text(seg.content)
-                    .fontSize(14)
-                    .fontFamily('Courier New')
-                    .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
-                    .lineHeight(22)
-                    .width('100%');
-                }
-                .width('100%')
-                .padding(12)
-                .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
-                .borderRadius(8)
-                .margin({ bottom: 12 });
-              } else {
-                Text(seg.content)
-                  .fontSize(15)
-                  .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-                  .lineHeight(26)
-                  .width('100%')
-                  .textIndent(32)
-                  .margin({ bottom: 12 });
-              }
+              this.SegmentItem(seg);
             });
+
+            if (this.contentSegments.length === 0) {
+              Text('\u6682\u65E0\u5185\u5BB9')
+                .fontSize(15)
+                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .width('100%');
+            }
 
             if (this.contentSegments.length === 0) {
               Text('\u6682\u65E0\u5185\u5BB9')

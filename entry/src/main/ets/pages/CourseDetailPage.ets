@@ -999,6 +999,33 @@ struct CourseDetailPage {
   }
 
   @Builder
+  SegmentItem(seg: ContentSegment): void {
+    if (seg.type === 'code') {
+      Column() {
+        Text(seg.content)
+          .fontSize(14)
+          .fontFamily('Courier New')
+          .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+          .lineHeight(22)
+          .width('100%');
+      }
+      .width('100%')
+      .padding(12)
+      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+      .borderRadius(8)
+      .margin({ bottom: 12 });
+    } else {
+      Text(seg.content)
+        .fontSize(15)
+        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+        .lineHeight(26)
+        .width('100%')
+        .textIndent(32)
+        .margin({ bottom: 12 });
+    }
+  }
+
+  @Builder
   DocSheet(): void {
     Column() {
       if (this.selectedDoc) {
@@ -1052,29 +1079,7 @@ struct CourseDetailPage {
             Divider().margin({ top: 16, bottom: 16 });
 
             ForEach(this.docSegments, (seg: ContentSegment) => {
-              if (seg.type === 'code') {
-                Column() {
-                  Text(seg.content)
-                    .fontSize(14)
-                    .fontFamily('Courier New')
-                    .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
-                    .lineHeight(22)
-                    .width('100%');
-                }
-                .width('100%')
-                .padding(12)
-                .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
-                .borderRadius(8)
-                .margin({ bottom: 12 });
-              } else {
-                Text(seg.content)
-                  .fontSize(15)
-                  .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-                  .lineHeight(26)
-                  .width('100%')
-                  .textIndent(32)
-                  .margin({ bottom: 12 });
-              }
+              this.SegmentItem(seg);
             });
 
             if (this.docSegments.length === 0) {
