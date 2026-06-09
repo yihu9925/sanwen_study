@@ -36,8 +36,10 @@ export class CourseHealthService {
       if (kbRs.goToNextRow()) {
         const graphStr: string = kbRs.getString(2) || '[]';
         try {
-          const graph = JSON.parse(graphStr) as Array<Record<string, Object>>;
-          q1Done = graph.length > 0;
+          const parsed: Record<string, Object> = JSON.parse(graphStr) as Record<string, Object>;
+          const nodes: Object = parsed['nodes'] || [];
+          const nodesArr: Object[] = nodes as Object[];
+          q1Done = nodesArr.length > 0;
         } catch (e) {
           q1Done = false;
         }
@@ -58,8 +60,10 @@ export class CourseHealthService {
       if (kbRs2.goToNextRow()) {
         const contStr: string = kbRs2.getString(3) || '[]';
         try {
-          const cont = JSON.parse(contStr) as Array<Record<string, Object>>;
-          q2Done = cont.length > 0;
+          const parsed: Record<string, Object> = JSON.parse(contStr) as Record<string, Object>;
+          const cont: Object = parsed['controversies'] || parsed;
+          const contArr: Object[] = cont as Object[];
+          q2Done = contArr.length > 0;
         } catch (e) {
           q2Done = false;
         }

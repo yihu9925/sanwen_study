@@ -20,6 +20,8 @@ export class RelationalStoreManager {
     };
 
     RelationalStoreManager.rdbStore = await relationalStore.getRdbStore(context, config);
+    // 启用外键约束（确保级联删除生效）
+    await RelationalStoreManager.rdbStore.executeSql('PRAGMA foreign_keys = ON');
     await RelationalStoreManager.createTables();
   }
 

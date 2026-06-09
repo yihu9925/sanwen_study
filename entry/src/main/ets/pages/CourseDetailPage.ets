@@ -29,6 +29,7 @@ struct CourseDetailPage {
   @State questions: Question[] = [];
   @State documents: Document[] = [];
   @State isLoading: boolean = false;
+  @StorageLink('themeMode') themeMode: string = 'auto';
   @State contentStatus: CourseContentStatus | null = null;
   @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
   @State graphKey: number = 0;  // 递增以强制刷新知识图谱组件
@@ -267,7 +268,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5');
+    .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#F5F5F5');
   }
 
   @Builder
@@ -482,10 +483,10 @@ struct CourseDetailPage {
   @Builder
   TabBar(): void {
     Row() {
-      this.TabItem('第一问：知识图谱', 0);
-      this.TabItem('第二问：争议点', 1);
-      this.TabItem('第三问：测评', 2);
-      this.TabItem('资料库', 3);
+      this.TabItemTwoLine('第一问', '知识图谱', 0);
+      this.TabItemTwoLine('第二问', '争议点', 1);
+      this.TabItemTwoLine('第三问', '测评', 2);
+      this.TabItemTwoLine('资料库', '', 3);
     }
     .width('100%')
     .height(48)

@@ -15,6 +15,7 @@ export struct HomePage {
   @State isLoading: boolean = false;
   @State pageState: 'loading' | 'content' | 'empty' | 'error' = 'loading';
   private userId: string = 'default_user';
+  @StorageLink('themeMode') themeMode: string = 'auto';
 
   aboutToAppear(): void {
     this.loadCourses();
@@ -149,7 +150,7 @@ export struct HomePage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(Color.White);
+    .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White);
   }
 
   @Builder
