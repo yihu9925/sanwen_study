@@ -18,6 +18,7 @@ import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
 import { getTimeAgo } from '../utils/DateUtils';
+import { parseParagraphs } from '../utils/ContentUtils';
 
 @Entry
 @Component
@@ -682,7 +683,7 @@ struct CourseDetailPage {
                 .borderRadius(8)
                 .onClick(() => {
                   this.selectedDoc = this.documents[index];
-                  this.docParagraphs = (this.documents[index].content || '\u6682\u65E0\u5185\u5BB9').split('\n').filter((p: string): boolean => p.trim().length > 0);
+                  this.docParagraphs = parseParagraphs(this.documents[index].content || '\u6682\u65E0\u5185\u5BB9');
                   this.showDocSheet = true;
                 });
               }
@@ -1002,21 +1003,18 @@ struct CourseDetailPage {
     Column() {
       if (this.selectedDoc) {
         Row() {
-          Text('\u8D44\u6599\u8BE6\u60C5')
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999');
-          Blank();
-          Button('\u5173\u95ED')
-            .fontSize(14)
-            .fontColor('#007DFF')
+          Blank().layoutWeight(1);
+          Button('\u2715')
+            .fontSize(18)
+            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
             .backgroundColor(Color.Transparent)
+            .width(36).height(36)
             .onClick(() => {
               this.showDocSheet = false;
             });
         }
         .width('100%')
-        .padding({ left: 20, right: 20, top: 12, bottom: 4 });
+        .padding({ right: 12, top: 6 });
 
         Scroll() {
           Column() {
