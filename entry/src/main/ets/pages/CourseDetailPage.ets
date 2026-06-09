@@ -505,7 +505,7 @@ struct CourseDetailPage {
       Column() {
         if (this.documents.length === 0) {
           Column() {
-            Text('\U0001F4DA')
+            Text('📚')
               .fontSize(64);
             Text('\u6682\u65E0\u8D44\u6599')
               .fontSize(16)
@@ -525,7 +525,7 @@ struct CourseDetailPage {
               ListItem() {
                 Row() {
                   Column() {
-                    Text(doc.sourceType === 'ai' ? '\U0001F916' : '\U0001F4C4')
+                    Text(doc.sourceType === 'ai' ? '🤖' : '📄')
                       .fontSize(24);
                   }
                   .width(40)
@@ -589,7 +589,7 @@ struct CourseDetailPage {
 
     // 上传资料按钮
     Row() {
-      Button('\U0001F4C4 \u4E0A\u4F20\u6587\u4EF6')
+      Button('📄 \u4E0A\u4F20\u6587\u4EF6')
         .height(40).borderRadius(20)
         .backgroundColor('#007DFF').fontColor(Color.White)
         .layoutWeight(1).margin({ right: 6 })
@@ -597,7 +597,7 @@ struct CourseDetailPage {
           this.showUploadDialog();
         });
 
-      Button('\U0001F50D AI\u722C\u53D6\u8D44\u6599')
+      Button('🔍 AI\u722C\u53D6\u8D44\u6599')
         .height(40).borderRadius(20)
         .backgroundColor('#E6F7FF').fontColor('#007DFF')
         .layoutWeight(1).margin({ left: 6 })

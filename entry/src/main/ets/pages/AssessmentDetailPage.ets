@@ -259,13 +259,13 @@ struct AssessmentDetailPage {
           .margin({ top: 16, bottom: 8 });
 
         Row() {
-          Button('\U0001F4C4 \u5BFC\u51FA JSON')
+          Button('📄 \u5BFC\u51FA JSON')
             .height(40).borderRadius(20)
             .backgroundColor('#E6F7FF').fontColor('#007DFF')
             .layoutWeight(1).margin({ right: 4 })
             .onClick(() => { this.exportReport('json'); });
 
-          Button('\U0001F4DD \u5BFC\u51FA Markdown')
+          Button('📝 \u5BFC\u51FA Markdown')
             .height(40).borderRadius(20)
             .backgroundColor('#FFF7E6').fontColor('#FF9800')
             .layoutWeight(1).margin({ left: 4 })
