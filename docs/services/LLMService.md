@@ -76,24 +76,63 @@ export class LLMService {
     return JSON.parse(result) as Controversy[];
   }
 
-  // 生成测评题
+  // 生成测评题（开放题模式，默认）
   static async generateQuestions(
     question: string,
     bloomLevel: string,
     knowledgeNodes: string[]
   ): Promise<Question[]> {
-    const prompt = `为以下知识点生成${bloomLevel}层级的测评题目...`;
+    const prompt = `为以下知识点生成${bloomLevel}层级的开放测评题目，每道题应引导学生自由阐述，而非选择。以JSON数组返回，格式：[{ "questionText": "...", "correctAnswer": "参考答案", "explanation": "知识点提示", "difficulty": 1-5 }]`;
     const result = await this.callLLM('你是教育测评专家。', prompt);
     return JSON.parse(result) as Question[];
   }
 
-  // 评估答案
+  // 评估用户自由回答（自由答题模式核心方法）
+  // 需求要求："自己回答自己产品的学习提问" + "不要拿AI生成答案喂AI"
+  static async evaluateUserAnswer(
+    question: Question,
+    userAnswer: string
+  ): Promise<AiEvaluation> {
+    const levelNames = ['记忆', '理解', '应用', '分析', '评价', '创造'];
+    const systemPrompt = '你是严谨的教育评估专家。根据布鲁姆认知层级标准评价学生回答。';
+    const userPrompt = [
+      '请评价以下学生的回答：',
+      '',
+      '【题目】' + question.questionText,
+      '【布鲁姆层级】' + levelNames[question.bloomLevel - 1] + '（第' + question.bloomLevel + '层）',
+      '【参考答案】' + question.correctAnswer,
+      '【学生回答】' + userAnswer,
+      '',
+      '请从准确性、深度、逻辑性、表达四个方面评价。',
+      '以JSON格式返回：{"score": 0-100, "comment": "评语", "strengths": ["优点"], "weaknesses": ["不足"], "improvement": "改进建议"}',
+      '评分标准：90+优秀 75-89良好 60-74及格 0-59不及格'
+    ].join('\n');
+
+    const result = await this.callLLM(systemPrompt, userPrompt);
+    try {
+      const parsed = JSON.parse(result) as AiEvaluation;
+      // 确保score在0-100范围内
+      parsed.score = Math.max(0, Math.min(100, parsed.score));
+      return parsed;
+    } catch {
+      // JSON解析失败时返回默认评分
+      return {
+        score: 50,
+        comment: '评价解析失败，请重新提交或联系管理员。',
+        strengths: [],
+        weaknesses: ['评价系统暂时不可用'],
+        improvement: '请重试'
+      } as AiEvaluation;
+    }
+  }
+
+  // 旧版的选择题评估（保留兼容，但不再作为主要评分方式）
   static async evaluateAnswer(
     question: string,
     userAnswer: string,
     correctAnswer: string
   ): Promise<{ isCorrect: boolean; explanation: string }> {
-    const prompt = `判断以下答案是否正确并给出解析...`;
+    const prompt = '判断以下答案是否正确并给出解析...';
     const result = await this.callLLM('你是评分助手。', prompt);
     return JSON.parse(result) as { isCorrect: boolean; explanation: string };
   }
@@ -170,3 +209,26 @@ try {
   }
 }
 ```
+
+
+// 自由答题模式的数据类型
+export interface AiEvaluation {
+  score: number;           // 0-100
+  comment: string;         // 总体评语
+  strengths: string[];     // 优点列表
+  weaknesses: string[];    // 不足列表
+  improvement: string;     // 改进建议
+}
+
+export interface AnswerRecord {
+  id: string;
+  userId: string;
+  courseId: string;
+  questionId: string;
+  bloomLevel: BloomLevel;
+  userAnswerText: string;      // 用户自由输入的答案
+  aiEvaluation: AiEvaluation;  // LLM评判结果
+  isCorrect: boolean;
+  score: number;
+  answeredAt: string;
+}

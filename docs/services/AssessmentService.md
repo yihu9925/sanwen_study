@@ -1,151 +1,233 @@
-# AssessmentService - 测评管理服务
+# AssessmentService - 测评管理服务（自由答题模式）
+
+> ⚠ **核心变更**：需求明确要求"自己回答自己产品的学习提问，并提交评价报告，不要拿AI生成答案喂AI"。
+> 因此测评系统由选择题比对改为**自由答题+LLM评判**模式。
 
 ## 核心职责
-管理测评题目和学习记录。
+管理测评题目、用户答题、LLM评判结果、评估报告生成。
+
+## 数据模型
+
+```typescript
+import { Question, BloomLevel } from '../models/Question';
+import { RelationalStoreManager } from './RelationalStoreManager';
+import { LLMService } from './LLMService';
+
+// 用户答题记录（自由答题模式使用）
+export interface AnswerRecord {
+  id?: string;
+  userId: string;
+  courseId: string;
+  questionId: string;
+  bloomLevel: BloomLevel;
+  userAnswerText: string;      // 用户自由输入的答案文本（核心字段）
+  aiEvaluation: AiEvaluation;  // LLM评判结果
+  isCorrect: boolean;          // score >= 60 为 true
+  score: number;               // 0-100
+  answeredAt: string;
+}
+
+// LLM评判结果
+export interface AiEvaluation {
+  score: number;           // 0-100
+  comment: string;         // 评语
+  strengths: string[];     // 优点
+  weaknesses: string[];    // 不足
+  improvement: string;     // 改进建议
+}
+
+// 评估报告
+export interface AssessmentReport {
+  courseId: string;
+  totalQuestions: number;
+  answeredQuestions: number;
+  averageScore: number;
+  levelStats: LevelStat[];       // 按布鲁姆维度统计
+  radarData: RadarData;          // 雷达图数据
+  answerDetails: AnswerDetail[]; // 每道题的详情（含对话记录）
+  generatedAt: string;
+}
+
+export interface LevelStat {
+  level: BloomLevel;
+  levelName: string;        // '记忆' | '理解' | '应用' | '分析' | '评价' | '创造'
+  totalQuestions: number;
+  answeredQuestions: number;
+  averageScore: number;
+  weaknesses: string[];     // 该维度常见不足
+}
+
+export interface AnswerDetail {
+  question: Question;
+  userAnswerText: string;   // 用户回答原文（对话原始记录）
+  evaluation: AiEvaluation; // LLM评判
+  isCorrect: boolean;
+  score: number;
+}
+```
 
 ## 接口定义
 
 ```typescript
-import { RelationalStoreManager } from './RelationalStoreManager';
-
 export class AssessmentService {
 
-  // 获取测评题目
+  // 1. 获取测评题目
   static async getQuestions(
     courseId: string,
-    bloomLevel?: number
-  ): Promise<Question[]> {
-    let rows;
-    if (bloomLevel) {
-      const predicates = new RdbPredicates('question');
-      predicates.equalTo('course_id', courseId);
-      predicates.equalTo('bloom_level', bloomLevel);
-      rows = await RelationalStoreManager.query(predicates);
-    } else {
-      rows = await RelationalStoreManager.query('question', 'course_id', courseId);
-    }
-    return rows.map(r => ({
-      id: r.id as string,
-      courseId: r.course_id as string,
-      bloomLevel: r.bloom_level as number,
-      questionText: r.question_text as string,
-      options: JSON.parse(r.options as string || '[]'),
-      correctAnswer: r.correct_answer as string,
-      explanation: r.explanation as string,
-      difficulty: r.difficulty as number,
-    } as Question));
-  }
+    bloomLevel?: BloomLevel
+  ): Promise<Question[]>
 
-  // 提交答案
-  static async submitAnswer(
+  // 2. 提交自由答案 — 调用LLM评判
+  static async submitFreeAnswer(
+    userId: string,
     courseId: string,
     questionId: string,
-    userAnswer: string,
-    isCorrect: boolean
-  ): Promise<void> {
-    // 获取题目信息（含bloom_level）
-    const qRows = await RelationalStoreManager.query('question', 'id', questionId);
-    const bloomLevel = qRows.length > 0 ? (qRows[0].bloom_level as number) : 0;
+    userAnswerText: string
+  ): Promise<{ isCorrect: boolean; score: number; evaluation: AiEvaluation }>
 
-    await RelationalStoreManager.insert('learning_record', {
-      id: crypto.randomUUID(),
-      user_id: AppStorage.get<string>('userId') || 'default_user',
-      course_id: courseId,
-      question_id: questionId,
-      bloom_level: bloomLevel,
-      user_answer: userAnswer,
-      is_correct: isCorrect ? 1 : 0,
-      attempt_count: 1,
-      answered_at: new Date().toISOString()
-    });
-  }
+  // 3. 获取学习记录
+  static async getLearningRecords(
+    courseId: string
+  ): Promise<AnswerRecord[]>
 
-  // 获取学习记录
-  static async getLearningRecords(courseId: string): Promise<LearningRecord[]> {
-    const rows = await RelationalStoreManager.query('learning_record', 'course_id', courseId);
-    return rows.map(r => ({
-      id: r.id as string,
-      userId: r.user_id as string,
-      courseId: r.course_id as string,
-      questionId: r.question_id as string,
-      bloomLevel: r.bloom_level as number,
-      userAnswer: r.user_answer as string,
-      isCorrect: (r.is_correct as number) === 1,
-      attemptCount: r.attempt_count as number,
-      answeredAt: r.answered_at as string,
-    } as LearningRecord));
-  }
+  // 4. 生成测评报告
+  static async generateReport(
+    courseId: string
+  ): Promise<AssessmentReport>
 
-  // 生成测评报告
-  static async generateReport(courseId: string): Promise<AssessmentReport> {
-    const records = await this.getLearningRecords(courseId);
-    const questions = await this.getQuestions(courseId);
-
-    const totalCount = records.length;
-    const correctCount = records.filter(r => r.isCorrect).length;
-    const wrongRecords = records.filter(r => !r.isCorrect);
-
-    // 各维度统计
-    const levelStats: Record<number, { total: number; correct: number }> = {};
-    for (let l = 1; l <= 6; l++) {
-      const levelRecords = records.filter(r => r.bloomLevel === l);
-      levelStats[l] = {
-        total: levelRecords.length,
-        correct: levelRecords.filter(r => r.isCorrect).length,
-      };
-    }
-
-    return {
-      courseId,
-      totalQuestions: questions.length,
-      answeredCount: totalCount,
-      correctCount,
-      accuracy: totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0,
-      levelStats,
-      wrongQuestions: wrongRecords.map(r => ({
-        questionId: r.questionId,
-        userAnswer: r.userAnswer,
-      })),
-    } as AssessmentReport;
-  }
-}
-
-export interface AssessmentReport {
-  courseId: string;
-  totalQuestions: number;
-  answeredCount: number;
-  correctCount: number;
-  accuracy: number;
-  levelStats: Record<number, { total: number; correct: number }>;
-  wrongQuestions: Array<{ questionId: string; userAnswer: string }>;
+  // 5. 更新课程雷达数据
+  static async updateRadarData(
+    courseId: string,
+    report: AssessmentReport
+  ): Promise<void>
 }
 ```
 
+## 核心流程
 
-## EventBus 集成
+### 自由答题流程
+
+```
+用户查看题目
+  ↓
+用户在文本框中自由输入回答
+  ↓
+用户点击"提交"
+  ↓
+调用 LLMService.evaluateUserAnswer(question, userAnswer)
+  ├─ 构建评判Prompt（含题目、参考答案、布鲁姆层级、评分标准）
+  ├─ 调用LLM API
+  └─ 返回 AiEvaluation { score, comment, strengths, weaknesses, improvement }
+  ↓
+保存学习记录到 learning_record 表
+  ├─ user_answer_text = 用户输入
+  ├─ ai_evaluation = JSON.stringify(evaluation)
+  ├─ score = evaluation.score
+  └─ is_correct = (score >= 60)
+  ↓
+显示评判结果给用户（评分、评语、改进建议）
+  ↓
+下一题 → 回到步骤1
+  ↓
+全部答完 → 生成 AssessmentReport
+  ├─ 计算各维度平均分
+  ├─ 更新 radar_data
+  └─ 展示完整评估报告
+```
+
+### LLM评判Prompt设计
 
 ```typescript
-// 提交答案后更新进度
-EventBus.emit('progress_updated', {
-  courseId,
-  progressPercent: newPercent,
-  radarData: newRadar
-});
+private static buildEvaluationPrompt(
+  question: Question,
+  userAnswer: string
+): string {
+  const levelNames = ['记忆', '理解', '应用', '分析', '评价', '创造'];
+  return `你是教育评估专家。请根据以下信息评价学生的回答。
+
+【题目】
+${question.questionText}
+
+【布鲁姆认知层级】
+${levelNames[question.bloomLevel - 1]}（第${question.bloomLevel}层）
+
+【参考答案】
+${question.correctAnswer}
+
+【学生的回答】
+${userAnswer}
+
+请从以下方面评价：
+1. 准确性：回答是否正确、完整
+2. 深度：是否达到该布鲁姆层级的要求
+3. 逻辑性：论证是否清晰、有条理
+4. 表达：语言是否准确、规范
+
+请以JSON格式返回评价结果：
+{
+  "score": <0-100的整数>,
+  "comment": "<总体评语>",
+  "strengths": ["<优点1>", "<优点2>"],
+  "weaknesses": ["<不足1>", "<不足2>"],
+  "improvement": "<改进建议>"
+}
+
+注意：评分标准——
+90-100：优秀，完全正确且有深度
+75-89：良好，基本正确但有提升空间
+60-74：及格，部分正确但需要加强
+0-59：不及格，需要重新学习这个知识点`;
+}
 ```
+
+## 评分报告示例
+
+### 按维度汇总
+
+| 布鲁姆层级 | 题目数 | 均分 | 状态 |
+|-----------|--------|------|------|
+| 记忆 | 2 | 85 | ✅ 良好 |
+| 理解 | 2 | 72 | ⚠️ 需要加强 |
+| 应用 | 2 | 45 | ❌ 不及格 |
+| 分析 | 2 | 68 | ⚠️ 需要加强 |
+| 评价 | 2 | 55 | ❌ 不及格 |
+| 创造 | 2 | 30 | ❌ 不及格 |
+
+### 对话原始记录（每道题）
+
+```
+题目：请解释微积分基本定理的核心思想
+你的回答：微积分基本定理建立了微分和积分之间的联系...
+AI评语：回答基本正确，但对于该定理的几何意义阐述不够深入（评分：72/100）
+改进建议：建议从牛顿和莱布尼茨的历史背景出发理解该定理...
+
+---
+```
+
+## 保存的对话原始记录
+
+每次答题的完整对话保存在 `learning_record` 表中，包含：
+- `user_answer_text` — 用户回答的原始文本
+- `ai_evaluation` — LLM评判的JSON（含score, comment, strengths, weaknesses, improvement）
+- `answered_at` — 回答时间戳
+
+这些数据可以导出为 JSON/Markdown 格式，满足"提交评价报告和对话原始记录"的需求。
 
 ## 端到端数据流
 
 ```
-用户选择答案 → submitAnswer()
-  ├─ 对比正确答案
-  ├─ INSERT learning_record
-  ├─ 返回 { isCorrect, explanation }
-  └→ EventBus.emit('progress_updated')
-
-CourseDetailPage 监听 progress_updated
-  → 更新底部 ProgressBar
-  → 更新 Q3_AssessmentPage 答题卡
-
-HomePage 监听 progress_updated（如可见）
-  → 更新课程卡片进度
+AssessmentDetailPage
+  ├─ aboutToAppear()
+  │    └→ AssessmentService.getQuestions(courseId)
+  │         └→ RDB question 表
+  │
+  ├─ 用户输入回答 → submitFreeAnswer()
+  │    ├→ LLMService.evaluateUserAnswer(question, text)
+  │    ├→ INSERT learning_record (含user_answer_text, ai_evaluation)
+  │    └→ 返回评分结果
+  │
+  └─ 生成报告 → generateReport()
+       ├→ SELECT * FROM learning_record WHERE course_id = ?
+       ├→ 计算各维度统计
+       └→ UPDATE course SET radar_data = ? WHERE id = ?
 ```
