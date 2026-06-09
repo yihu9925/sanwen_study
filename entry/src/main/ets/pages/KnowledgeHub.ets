@@ -4,7 +4,6 @@ import { getTimeAgo } from '../utils/DateUtils';
 
 @Component
 export struct KnowledgeHub {
-  @StorageLink('knowledgeHubRefreshKey') @Watch('onRefreshKeyChange') refreshKey: number = 0;
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('userId') userId: string = '';
   @StorageLink('themeMode') themeMode: string = 'auto';
@@ -19,10 +18,6 @@ export struct KnowledgeHub {
   @State errorMsg: string = '';
 
   aboutToAppear(): void {
-    this.loadData();
-  }
-
-  onRefreshKeyChange(): void {
     this.loadData();
   }
 
@@ -64,11 +59,6 @@ export struct KnowledgeHub {
     this.applyFilters();
   }
 
-  onFilterChange(filter: string): void {
-    this.activeFilter = filter;
-    this.applyFilters();
-  }
-
   openDocDetail(doc: DocWithCourse): void {
     this.selectedDoc = doc;
     this.showDocSheet = true;
@@ -104,14 +94,11 @@ export struct KnowledgeHub {
         .borderRadius(20)
         .onChange((val: string) => this.onSearchChange(val));
 
-      // 筛选栏
-      Column() {
-        Row() {
-          this.FilterPill('\u5168\u90E8', 'all', this.activeFilter === 'all');
-          this.FilterPill('AI\u8D44\u6599', 'ai', this.activeFilter === 'ai');
-          this.FilterPill('\u7528\u6237\u4E0A\u4F20', 'user', this.activeFilter === 'user');
-        }
-        .width('100%');
+      // 筛选栏 - 使用内联 Button 以确保点击事件可靠
+      Row() {
+        this.FilterBtn('\u5168\u90E8', 'all', this.activeFilter === 'all');
+        this.FilterBtn('AI\u8D44\u6599', 'ai', this.activeFilter === 'ai');
+        this.FilterBtn('\u7528\u6237\u4E0A\u4F20', 'user', this.activeFilter === 'user');
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 4 });
@@ -136,17 +123,20 @@ export struct KnowledgeHub {
   }
 
   @Builder
-  FilterPill(label: string, filter: string, isActive: boolean): void {
-    Text(label)
+  FilterBtn(label: string, filter: string, isActive: boolean): void {
+    Button(label)
       .fontSize(13)
       .fontColor(isActive ? Color.White :
         (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
-      .padding({ left: 14, right: 14, top: 6, bottom: 6 })
       .backgroundColor(isActive ? '#007DFF' :
         (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
       .borderRadius(16)
+      .height(32)
       .margin({ right: 8 })
-      .onClick(() => this.onFilterChange(filter));
+      .onClick(() => {
+        this.activeFilter = filter;
+        this.applyFilters();
+      });
   }
 
   @Builder

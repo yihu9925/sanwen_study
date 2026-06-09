@@ -20,7 +20,8 @@ struct Index {
       TabContent() {
         KnowledgeHub();
       }
-      .tabBar('\u77E5\u8BC6\u5E93');
+      .tabBar('\u77E5\u8BC6\u5E93')
+      .key('kh_' + this.knowledgeHubRefreshKey);
 
       TabContent() {
         PersonalCenter();
