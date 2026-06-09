@@ -155,7 +155,28 @@ export class KnowledgeBaseService {
         '\u672c\u6587\u5153\u6ce8' + shortContent + '\u7684\u6700\u65b0\u7814\u7a76\u6210\u679c\u3001\u5b66\u672f\u524d\u6cbf\u52a8\u6001\u548c\u672a\u6765\u53d1\u5c55\u65b9\u5411\u3002',
       ];
 
+      // 检查已存在的文档标题，避免重复生成
+      const existPredicates = new relationalStore.RdbPredicates('document');
+      existPredicates.equalTo('course_id', courseId);
+      const existRs = await store.query(existPredicates);
+      const existTitles: string[] = [];
+      while (existRs.goToNextRow()) {
+        existTitles.push(existRs.getString(3));
+      }
+      existRs.close();
+
+      // 检查标题是否已存在（模拟Set去重）
       for (let i = 0; i < titles.length; i++) {
+        let isDuplicate: boolean = false;
+        for (let t = 0; t < existTitles.length; t++) {
+          if (existTitles[t] === titles[i]) {
+            isDuplicate = true;
+            break;
+          }
+        }
+        if (isDuplicate) {
+          continue;
+        }
         const docId: string = generateUUID();
         const valueBucket: relationalStore.ValuesBucket = {};
         valueBucket['id'] = docId;
