@@ -106,8 +106,7 @@ export struct KnowledgeGraphView {
         }
         .width(44)
         .alignItems(HorizontalAlign.Center)
-        .align(Alignment.BottomEnd)
-        .margin({ right: 12, bottom: 12 });
+        .position({ x: this.canvasWidth - 64, y: this.canvasHeight - 130 });
       }
 
       if (this.selectedNode) {
