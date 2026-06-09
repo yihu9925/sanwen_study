@@ -162,7 +162,11 @@ export struct KnowledgeHub {
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#FFFFFF')
-    .bindSheet($$this.showDocSheet, this.DocSheet());
+    .bindSheet($$this.showDocSheet, this.DocSheet(), {
+      height: 600,
+      backgroundColor: this.themeMode === 'dark' ? '#222222' : Color.White,
+      dragBar: true
+    });
   }
 
   @Builder
@@ -316,13 +320,31 @@ export struct KnowledgeHub {
   DocSheet(): void {
     Column() {
       if (this.selectedDoc) {
+        Row() {
+          Text('\u8D44\u6599\u8BE6\u60C5')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999');
+          Blank();
+          Button('\u5173\u95ED')
+            .fontSize(14)
+            .fontColor('#007DFF')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => {
+              this.showDocSheet = false;
+            });
+        }
+        .width('100%')
+        .padding({ left: 20, right: 20, top: 12, bottom: 4 });
+
         Scroll() {
           Column() {
             Text(this.selectedDoc.title)
-              .fontSize(20)
+              .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A')
-              .lineHeight(28);
+              .lineHeight(30)
+              .width('100%');
 
             Row() {
               Text(this.selectedDoc.domain || '\u672A\u5206\u7C7B')
@@ -332,32 +354,73 @@ export struct KnowledgeHub {
                 .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
                 .borderRadius(4);
 
-              Text('\u8BFE\u7A0B\uFF1A' + this.selectedDoc.courseTitle)
+              Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u751F\u6210' : '\u7528\u6237\u4E0A\u4F20')
                 .fontSize(12)
-                .fontColor(this.themeMode === 'dark' ? '#AAAAAA' : '#888888')
+                .fontColor(this.selectedDoc.sourceType === 'ai' ? '#52C41A' : '#FA8C16')
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                .backgroundColor(this.selectedDoc.sourceType === 'ai' ?
+                  (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED') :
+                  (this.themeMode === 'dark' ? '#2A1A0A' : '#FFF7E6'))
+                .borderRadius(4)
                 .margin({ left: 8 });
             }
+            .width('100%')
             .margin({ top: 12 });
+
+            Row() {
+              Text('\u8BFE\u7A0B\uFF1A' + this.selectedDoc.courseTitle)
+                .fontSize(13)
+                .fontColor(this.themeMode === 'dark' ? '#AAAAAA' : '#888888');
+              Blank();
+              Text(getTimeAgo(this.selectedDoc.uploadedAt))
+                .fontSize(12)
+                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA');
+            }
+            .width('100%')
+            .margin({ top: 6 });
+
+            if (this.selectedDoc.keywords.length > 0) {
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.selectedDoc.keywords, (kw: string) => {
+                  Text(kw)
+                    .fontSize(12)
+                    .fontColor(this.themeMode === 'dark' ? '#BBBBBB' : '#666666')
+                    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                    .backgroundColor(this.themeMode === 'dark' ? '#444444' : '#F0F0F0')
+                    .borderRadius(12)
+                    .margin({ right: 6, bottom: 6 });
+                });
+              }
+              .width('100%')
+              .margin({ top: 12 });
+            }
 
             Divider().margin({ top: 16, bottom: 16 });
 
             Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
-              .fontSize(14)
-              .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#555555')
-              .lineHeight(24);
+              .fontSize(15)
+              .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+              .lineHeight(26)
+              .width('100%');
           }
           .width('100%')
           .padding(20);
         }
-        .layoutWeight(1);
+        .layoutWeight(1)
+        .scrollBar(BarState.Auto);
 
         Button('\u53BB\u8BFE\u7A0B\u8BE6\u60C5')
           .width('90%')
-          .margin({ bottom: 16 })
+          .height(44)
+          .fontSize(16)
+          .fontColor(Color.White)
+          .backgroundColor('#007DFF')
+          .borderRadius(22)
+          .margin({ bottom: 20 })
           .onClick(() => this.goToCourse(this.selectedDoc!.courseId));
       }
     }
     .width('100%')
-    .height('80%');
+    .height('85%');
   }
 }

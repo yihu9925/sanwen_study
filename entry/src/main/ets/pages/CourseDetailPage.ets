@@ -17,6 +17,7 @@ import { CourseHealthService, CourseContentStatus } from '../services/CourseHeal
 import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
+import { getTimeAgo } from '../utils/DateUtils';
 
 @Entry
 @Component
@@ -999,31 +1000,80 @@ struct CourseDetailPage {
     Column() {
       if (this.selectedDoc) {
         Row() {
-          Text(this.selectedDoc.title)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .layoutWeight(1);
-
-          Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u8865\u5145' : '\u7528\u6237\u4E0A\u4F20')
-            .fontSize(11).fontColor('#007DFF')
-            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-            .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
-            .borderRadius(4);
+          Text('\u8D44\u6599\u8BE6\u60C5')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999');
+          Blank();
+          Button('\u5173\u95ED')
+            .fontSize(14)
+            .fontColor('#007DFF')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => {
+              this.showDocSheet = false;
+            });
         }
         .width('100%')
-        .padding(16);
-
-        Divider();
+        .padding({ left: 20, right: 20, top: 12, bottom: 4 });
 
         Scroll() {
-          Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
-            .fontSize(14)
-            .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#666666')
-            .lineHeight(22)
-            .width('100%');
+          Column() {
+            Text(this.selectedDoc.title)
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A')
+              .lineHeight(30)
+              .width('100%');
+
+            Row() {
+              Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u751F\u6210' : '\u7528\u6237\u4E0A\u4F20')
+                .fontSize(12)
+                .fontColor(this.selectedDoc.sourceType === 'ai' ? '#52C41A' : '#FA8C16')
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                .backgroundColor(this.selectedDoc.sourceType === 'ai' ?
+                  (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED') :
+                  (this.themeMode === 'dark' ? '#2A1A0A' : '#FFF7E6'))
+                .borderRadius(4);
+            }
+            .width('100%')
+            .margin({ top: 12 });
+
+            if (this.selectedDoc.uploadedAt) {
+              Text(getTimeAgo(this.selectedDoc.uploadedAt))
+                .fontSize(12)
+                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .width('100%')
+                .margin({ top: 6 });
+            }
+
+            if (this.selectedDoc.keywords.length > 0) {
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.selectedDoc.keywords, (kw: string) => {
+                  Text(kw)
+                    .fontSize(12)
+                    .fontColor(this.themeMode === 'dark' ? '#BBBBBB' : '#666666')
+                    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                    .backgroundColor(this.themeMode === 'dark' ? '#444444' : '#F0F0F0')
+                    .borderRadius(12)
+                    .margin({ right: 6, bottom: 6 });
+                });
+              }
+              .width('100%')
+              .margin({ top: 12 });
+            }
+
+            Divider().margin({ top: 16, bottom: 16 });
+
+            Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
+              .fontSize(15)
+              .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+              .lineHeight(26)
+              .width('100%');
+          }
+          .width('100%')
+          .padding(20);
         }
         .layoutWeight(1)
-        .padding(16)
         .scrollBar(BarState.Auto);
       }
     }
