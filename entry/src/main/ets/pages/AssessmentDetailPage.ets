@@ -1,8 +1,8 @@
-// 测评详情页 - 答题交互 + 测评报告
+// 测评详情页 - 自由答题交互 + 对话原始记录 + 评估报告
+// 核心变更：选择题(Radio) → 自由文本输入(TextArea) + LLM评判
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
-import { relationalStore } from '@kit.ArkData';
-import { Question } from '../models/Question';
+import { Question, AiEvaluation, BloomLevel, getBloomLevelName } from '../models/Question';
 import { RadarData } from '../models/Course';
 import { AssessmentService } from '../services/AssessmentService';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
@@ -14,14 +14,14 @@ struct AssessmentDetailPage {
   @State courseId: string = '';
   @State questions: Question[] = [];
   @State currentIndex: number = 0;
-  @State selectedAnswer: string = '';
-  @State hasSubmitted: boolean = false;
-  @State isCorrect: boolean = false;
+  @State userAnswerText: string = '';       // 用户自由输入的回答
+  @State isSubmitting: boolean = false;      // 是否在等待LLM评判
+  @State showEvaluation: boolean = false;    // 是否显示评判结果
+  @State evaluation: AiEvaluation | null = null;  // LLM评判结果
+  @State allEvaluations: AiEvaluation[] = [];     // 所有评判记录
+  @State showReport: boolean = false;        // 是否显示报告
   @State isLoading: boolean = false;
-  @State showReport: boolean = false;
-  @State answerLevels: number[] = [];
-  @State answerResults: boolean[] = [];
-  @State correctNum: number = 0;
+  @State answerDetails: AnswerDetailItem[] = []; // 对话记录
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -36,74 +36,87 @@ struct AssessmentDetailPage {
       this.isLoading = true;
       this.questions = await AssessmentService.getQuestions(this.courseId);
     } catch (error) {
-      promptAction.showToast({ message: '\u52A0\u8F7D\u9898\u76EE\u5931\u8D25' });
+      promptAction.showToast({ message: '\u52a0\u8f7d\u9898\u76ee\u5931\u8d25' });
     } finally {
       this.isLoading = false;
     }
   }
 
-  async submitAnswer(): Promise<void> {
-    if (!this.selectedAnswer || this.currentIndex >= this.questions.length) {
+  // 提交自由回答 — 核心方法
+  async submitFreeAnswer(): Promise<void> {
+    if (!this.userAnswerText.trim() || this.currentIndex >= this.questions.length) {
       return;
     }
+    this.isSubmitting = true;
     try {
       const question = this.questions[this.currentIndex];
-      const result = await AssessmentService.submitAnswer('default_user', this.courseId, question.id, this.selectedAnswer);
-      this.isCorrect = result;
-      this.hasSubmitted = true;
-      this.answerLevels.push(question.bloomLevel);
-      this.answerResults.push(result);
-      if (result) {
-        this.correctNum++;
-      }
+      const result = await AssessmentService.submitFreeAnswer(
+        'default_user',
+        this.courseId,
+        question,
+        this.userAnswerText
+      );
+      this.evaluation = result.evaluation;
+      this.allEvaluations.push(result.evaluation);
+      // 保存对话原始记录
+      this.answerDetails.push({
+        questionText: question.questionText,
+        bloomLevel: question.bloomLevel,
+        userAnswerText: this.userAnswerText,
+        evaluation: result.evaluation,
+        score: result.score,
+        isCorrect: result.isCorrect
+      });
+      this.showEvaluation = true;
     } catch (error) {
-      promptAction.showToast({ message: '\u63D0\u4EA4\u5931\u8D25' });
-    }
-  }
-
-  async updateRadarData(): Promise<void> {
-    try {
-      const levelCorrect: number[] = [0, 0, 0, 0, 0, 0];
-      const levelTotal: number[] = [0, 0, 0, 0, 0, 0];
-      for (let i = 0; i < this.answerLevels.length; i++) {
-        const level = this.answerLevels[i];
-        if (level >= 0 && level < 6) {
-          levelTotal[level]++;
-          if (this.answerResults[i]) {
-            levelCorrect[level]++;
-          }
-        }
-      }
-      const radar: RadarData = { remember: 0, understand: 0, apply: 0, analyze: 0, evaluate: 0, create: 0 };
-      if (levelTotal[0] > 0) { radar.remember = Math.round(levelCorrect[0] / levelTotal[0] * 100); }
-      if (levelTotal[1] > 0) { radar.understand = Math.round(levelCorrect[1] / levelTotal[1] * 100); }
-      if (levelTotal[2] > 0) { radar.apply = Math.round(levelCorrect[2] / levelTotal[2] * 100); }
-      if (levelTotal[3] > 0) { radar.analyze = Math.round(levelCorrect[3] / levelTotal[3] * 100); }
-      if (levelTotal[4] > 0) { radar.evaluate = Math.round(levelCorrect[4] / levelTotal[4] * 100); }
-      if (levelTotal[5] > 0) { radar.create = Math.round(levelCorrect[5] / levelTotal[5] * 100); }
-
-      const store = RelationalStoreManager.getStore();
-      const predicates = new relationalStore.RdbPredicates('course');
-      predicates.equalTo('id', this.courseId);
-      const updateVal: relationalStore.ValuesBucket = {
-        radar_data: JSON.stringify(radar),
-        updated_at: new Date().toISOString()
-      };
-      await store.update(updateVal, predicates);
-    } catch (e) {
-      console.error('Radar update failed');
+      promptAction.showToast({ message: '\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
+    } finally {
+      this.isSubmitting = false;
     }
   }
 
   nextQuestion(): void {
     if (this.currentIndex < this.questions.length - 1) {
       this.currentIndex++;
-      this.selectedAnswer = '';
-      this.hasSubmitted = false;
+      this.userAnswerText = '';
+      this.showEvaluation = false;
+      this.evaluation = null;
     } else {
-      this.updateRadarData();
+      // 更新雷达数据
+      this.updateRadarAfterAssessment();
       this.showReport = true;
     }
+  }
+
+  async updateRadarAfterAssessment(): Promise<void> {
+    try {
+      // 按布鲁姆维度计算平均分
+      const levelScores: Record<number, number[]> = {};
+      for (const detail of this.answerDetails) {
+        const lv = detail.bloomLevel;
+        if (!levelScores[lv]) {
+          levelScores[lv] = [];
+        }
+        levelScores[lv].push(detail.score);
+      }
+      const levelStats: Array<{ level: BloomLevel; averageScore: number }> = [];
+      for (let lv = 1; lv <= 6; lv++) {
+        const scores = levelScores[lv] || [];
+        const avg = scores.length > 0
+          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+          : 0;
+        levelStats.push({ level: lv as BloomLevel, averageScore: avg });
+      }
+      await AssessmentService.updateRadarData(this.courseId, levelStats);
+    } catch (e) {
+      console.error('Radar update failed');
+    }
+  }
+
+  getAverageScore(): number {
+    if (this.allEvaluations.length === 0) return 0;
+    const total = this.allEvaluations.reduce((s, e) => s + e.score, 0);
+    return Math.round(total / this.allEvaluations.length);
   }
 
   build() {
@@ -127,7 +140,7 @@ struct AssessmentDetailPage {
   LoadingView(): void {
     Column() {
       LoadingProgress().width(48).height(48);
-      Text('\u52A0\u8F7D\u4E2D...').fontSize(14).fontColor('#999999').margin({ top: 12 });
+      Text('\u52a0\u8f7d\u4e2d...').fontSize(14).fontColor('#999999').margin({ top: 12 });
     }
     .width('100%').height('100%').justifyContent(FlexAlign.Center);
   }
@@ -135,66 +148,121 @@ struct AssessmentDetailPage {
   @Builder
   EmptyView(): void {
     Column() {
-      Text('\u6682\u65E0\u9898\u76EE').fontSize(16).fontColor('#999999');
-      Button('\u8FD4\u56DE').margin({ top: 16 }).onClick(() => { AppRouter.back(); });
+      Text('\u6682\u65e0\u9898\u76ee').fontSize(16).fontColor('#999999');
+      Button('\u8fd4\u56de').margin({ top: 16 }).onClick(() => { AppRouter.back(); });
     }
     .width('100%').height('100%').justifyContent(FlexAlign.Center);
   }
 
+  // ===== 完整评估报告（含对话原始记录）=====
   @Builder
   ReportView(): void {
     Scroll() {
       Column() {
-        Text('\u8BC4\u4F30\u62A5\u544A').fontSize(22).fontWeight(FontWeight.Bold).margin({ top: 24, bottom: 8 });
-        Text('\u606D\u559C\u5B8C\u6210\u4E86\u672C\u6B21\u8BC4\u4F30!').fontSize(14).fontColor('#666666').margin({ bottom: 20 });
+        // 报告标题
+        Text('\u8bc4\u4f30\u62a5\u544a').fontSize(22).fontWeight(FontWeight.Bold).margin({ top: 24, bottom: 4 });
+        Text('\u5171' + this.questions.length + '\u9898\uff0c\u5df2\u7b54' + this.answerDetails.length + '\u9898')
+          .fontSize(14).fontColor('#666666').margin({ bottom: 16 });
+
+        // 统计卡片
         Row() {
-          this.StatCard(String(this.questions.length), '\u603B\u9898\u6570', '#333333');
-          this.StatCard(String(this.correctNum), '\u6B63\u786E\u6570', '#4CAF50');
-          this.StatCard(String(this.getReportRate()) + '%', '\u6B63\u786E\u7387', '#FF9800');
+          this.StatCard(String(this.questions.length), '\u603b\u9898\u6570', '#333333');
+          this.StatCard(String(this.answerDetails.length), '\u5df2\u7b54', this.answerDetails.length > 0 ? '#4CAF50' : '#999999');
+          this.StatCard(String(this.getAverageScore()), '\u5747\u5206', this.getAverageScore() >= 60 ? '#4CAF50' : '#FF9800');
         }
         .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12);
 
-        Text('\u8BA4\u77E5\u5C42\u6B21\u5206\u6790').fontSize(18).fontWeight(FontWeight.Bold).width('100%').margin({ top: 20, bottom: 12 });
+        // 布鲁姆维度分析
+        Text('\u8ba4\u77e5\u5c42\u6b21\u5206\u6790').fontSize(18).fontWeight(FontWeight.Bold)
+          .width('100%').margin({ top: 20, bottom: 12 });
         Column() {
-          this.ReportRow('\u8BB0\u5FC6', this.getLevelStat(0));
-          this.ReportRow('\u7406\u89E3', this.getLevelStat(1));
-          this.ReportRow('\u5E94\u7528', this.getLevelStat(2));
-          this.ReportRow('\u5206\u6790', this.getLevelStat(3));
-          this.ReportRow('\u8BC4\u4EF7', this.getLevelStat(4));
-          this.ReportRow('\u521B\u9020', this.getLevelStat(5));
+          this.ReportRow('\u8bb0\u5fc6', this.getLevelAvgScore(1));
+          this.ReportRow('\u7406\u89e3', this.getLevelAvgScore(2));
+          this.ReportRow('\u5e94\u7528', this.getLevelAvgScore(3));
+          this.ReportRow('\u5206\u6790', this.getLevelAvgScore(4));
+          this.ReportRow('\u8bc4\u4ef7', this.getLevelAvgScore(5));
+          this.ReportRow('\u521b\u9020', this.getLevelAvgScore(6));
         }
         .width('100%').padding(12).backgroundColor(Color.White).borderRadius(12);
 
-        Text('\u96F7\u8FBE\u6570\u636E\u5DF2\u81EA\u52A8\u66F4\u65B0').fontSize(13).fontColor('#4CAF50').margin({ top: 16, bottom: 20 });
-        Button('\u8FD4\u56DE\u8BFE\u7A0B').width('80%').height(44).borderRadius(22).margin({ bottom: 24 }).onClick(() => { AppRouter.back(); });
+        // 对话原始记录
+        Text('\u5bf9\u8bdd\u539f\u59cb\u8bb0\u5f55').fontSize(18).fontWeight(FontWeight.Bold)
+          .width('100%').margin({ top: 20, bottom: 12 });
+
+        ForEach(this.answerDetails, (detail: AnswerDetailItem, index: number) => {
+          Column() {
+            Row() {
+              Text('\u7b2c' + (index + 1) + '\u9898: ' + getBloomLevelName(detail.bloomLevel))
+                .fontSize(15).fontWeight(FontWeight.Bold).fontColor('#007DFF');
+              Text('\u5206\u6570: ' + detail.score)
+                .fontSize(14).fontColor(detail.score >= 60 ? '#4CAF50' : '#F44336')
+                .margin({ left: 8 });
+            }
+            .width('100%');
+
+            Row() {
+              Text('\u9898\u76ee: ' + detail.questionText)
+                .fontSize(13).fontColor('#333333').margin({ top: 6 });
+            }
+            .width('100%');
+
+            Row() {
+              Text('\u4f60\u7684\u56de\u7b54: ' + detail.userAnswerText)
+                .fontSize(13).fontColor('#666666').margin({ top: 4 });
+            }
+            .width('100%');
+
+            Row() {
+              Text('AI\u8bc4\u8bed: ' + detail.evaluation.comment)
+                .fontSize(13).fontColor('#999999').margin({ top: 4 });
+            }
+            .width('100%');
+
+            if (detail.evaluation.strengths.length > 0) {
+              Row() {
+                Text('\u4f18\u70b9: ' + detail.evaluation.strengths.join('\uff1b'))
+                  .fontSize(12).fontColor('#4CAF50').margin({ top: 2 });
+              }
+              .width('100%');
+            }
+
+            if (detail.evaluation.weaknesses.length > 0) {
+              Row() {
+                Text('\u4e0d\u8db3: ' + detail.evaluation.weaknesses.join('\uff1b'))
+                  .fontSize(12).fontColor('#F44336').margin({ top: 2 });
+              }
+              .width('100%');
+            }
+
+            Row() {
+              Text('\u6539\u8fdb\u5efa\u8bae: ' + detail.evaluation.improvement)
+                .fontSize(12).fontColor('#FF9800').margin({ top: 2 });
+            }
+            .width('100%');
+          }
+          .width('100%').padding(12).backgroundColor(Color.White).borderRadius(8).margin({ bottom: 8 });
+        });
+
+        Text('\u96f7\u8fbe\u6570\u636e\u5df2\u81ea\u52a8\u66f4\u65b0').fontSize(13).fontColor('#4CAF50')
+          .margin({ top: 16, bottom: 8 });
+        Button('\u8fd4\u56de\u8bfe\u7a0b').width('80%').height(44).borderRadius(22).margin({ bottom: 24 })
+          .onClick(() => { AppRouter.back(); });
       }
       .width('100%').padding(16);
     }
     .width('100%').layoutWeight(1);
   }
 
+  getLevelAvgScore(level: number): number {
+    const items = this.answerDetails.filter(d => d.bloomLevel === level);
+    if (items.length === 0) return 0;
+    return Math.round(items.reduce((s, d) => s + d.score, 0) / items.length);
+  }
+
   reportColor(pct: number): string {
     if (pct >= 80) { return '#4CAF50'; }
     if (pct >= 60) { return '#FF9800'; }
     return '#F44336';
-  }
-
-  getReportRate(): number {
-    return this.questions.length > 0 ? Math.round(this.correctNum / this.questions.length * 100) : 0;
-  }
-
-  getLevelStat(level: number): number {
-    let correct = 0;
-    let total = 0;
-    for (let i = 0; i < this.answerLevels.length; i++) {
-      if (this.answerLevels[i] === level) {
-        total++;
-        if (this.answerResults[i]) {
-          correct++;
-        }
-      }
-    }
-    return total > 0 ? Math.round(correct / total * 100) : 0;
   }
 
   @Builder
@@ -219,60 +287,119 @@ struct AssessmentDetailPage {
     .width('100%').margin({ top: 6, bottom: 6 });
   }
 
+  // ===== 答题视图（TextArea自由输入）=====
   @Builder
   QuestionView(): void {
     Column() {
+      // 顶部进度
       Row() {
-        Text('\u9898\u76EE ' + (this.currentIndex + 1) + ' / ' + this.questions.length)
+        Text('\u9898\u76ee ' + (this.currentIndex + 1) + ' / ' + this.questions.length)
           .fontSize(14).fontColor('#666666');
       }
-      .width('100%').padding(16).backgroundColor(Color.White);
+      .width('100%').padding({ left: 16, right: 16, top: 12, bottom: 12 })
+      .backgroundColor(Color.White);
 
-      Column() {
-        Text(this.questions[this.currentIndex].questionText)
-          .fontSize(18).fontWeight(FontWeight.Bold);
-
+      Scroll() {
         Column() {
-          ForEach(this.questions[this.currentIndex].options, (option: string, index: number) => {
-            Row() {
-              Radio({ value: String(index), group: 'q_options' })
-                .width(24).height(24)
-                .checked(this.selectedAnswer === String(index))
-                .onChange((isChecked: boolean) => {
-                  if (isChecked) {
-                    this.selectedAnswer = String(index);
-                  }
-                });
-              Text(option).fontSize(16).margin({ left: 12 });
-            }
-            .width('100%').padding(12)
-            .backgroundColor(this.selectedAnswer === String(index) ? '#E3F2FD' : Color.White)
-            .borderRadius(8).margin({ top: 8 });
-          });
-        }
-        .width('100%').margin({ top: 24 });
-
-        if (this.hasSubmitted) {
+          // 题目卡片
           Column() {
-            Text(this.isCorrect ? '\u2713 \u6B63\u786E' : '\u2717 \u9519\u8BEF')
-              .fontSize(16).fontWeight(FontWeight.Bold)
-              .fontColor(this.isCorrect ? '#4CAF50' : '#F44336');
-          }
-          .width('100%').padding(16)
-          .backgroundColor(this.isCorrect ? '#E8F5E9' : '#FFEBEE')
-          .borderRadius(8).margin({ top: 24 });
-        }
-      }
-      .width('100%').layoutWeight(1).padding(16);
+            Row() {
+              // 难度标签
+              Text('\u2b50'.repeat(this.questions[this.currentIndex].difficulty))
+                .fontSize(14);
+            }
+            .width('100%');
 
+            // 布鲁姆层级
+            Row() {
+              Text(getBloomLevelName(this.questions[this.currentIndex].bloomLevel))
+                .fontSize(12).fontColor(Color.White)
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                .backgroundColor('#007DFF').borderRadius(4);
+            }
+            .width('100%').margin({ top: 8 });
+
+            // 题目文本
+            Text(this.questions[this.currentIndex].questionText)
+              .fontSize(18).fontWeight(FontWeight.Bold).margin({ top: 16 });
+
+            // 自由输入文本框（核心变更：TextArea替代Radio组）
+            Text('\u4f60\u7684\u56de\u7b54')
+              .fontSize(14).fontColor('#333333').margin({ top: 24, bottom: 8 });
+
+            TextArea({
+              text: this.userAnswerText,
+              placeholder: '\u8bf7\u5728\u6b64\u81ea\u7531\u8f93\u5165\u4f60\u7684\u56de\u7b54...'
+            })
+              .width('100%').height(180)
+              .onChange((value: string) => {
+                this.userAnswerText = value;
+              });
+          }
+          .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12);
+
+          // LLM评判结果展示（提交后显示）
+          if (this.showEvaluation && this.evaluation) {
+            Column() {
+              Row() {
+                Text('\u8bc4\u5206: ' + this.evaluation.score + '/100')
+                  .fontSize(20).fontWeight(FontWeight.Bold)
+                  .fontColor(this.evaluation.score >= 60 ? '#4CAF50' : '#F44336');
+              }
+              .width('100%');
+
+              Row() {
+                Text(this.evaluation.comment).fontSize(14).fontColor('#333333');
+              }
+              .width('100%').margin({ top: 8 });
+
+              if (this.evaluation.strengths.length > 0) {
+                Row() {
+                  Text('\u2713 \u4f18\u70b9: ' + this.evaluation.strengths.join('\uff1b'))
+                    .fontSize(13).fontColor('#4CAF50');
+                }
+                .width('100%').margin({ top: 4 });
+              }
+
+              if (this.evaluation.weaknesses.length > 0) {
+                Row() {
+                  Text('\u2717 \u4e0d\u8db3: ' + this.evaluation.weaknesses.join('\uff1b'))
+                    .fontSize(13).fontColor('#F44336');
+                }
+                .width('100%').margin({ top: 4 });
+              }
+
+              Row() {
+                Text('\u2b06 \u6539\u8fdb\u5efa\u8bae: ' + this.evaluation.improvement)
+                  .fontSize(13).fontColor('#FF9800');
+              }
+              .width('100%').margin({ top: 4 });
+            }
+            .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12).margin({ top: 12 });
+          }
+        }
+        .width('100%').padding(16);
+      }
+      .layoutWeight(1);
+
+      // 底部按钮
       Row() {
-        if (!this.hasSubmitted) {
-          Button('\u63D0\u4EA4\u7B54\u6848')
-            .width('100%').enabled(this.selectedAnswer !== '')
-            .onClick(() => { this.submitAnswer(); });
+        if (!this.showEvaluation) {
+          // 提交按钮（等待LLM评判时禁用）
+          Button('\u63d0\u4ea4\u56de\u7b54')
+            .width('100%').height(44).borderRadius(22)
+            .enabled(this.userAnswerText.trim().length > 0 && !this.isSubmitting)
+            .onClick(() => { this.submitFreeAnswer(); });
+
+          if (this.isSubmitting) {
+            // 提交中显示加载提示
+            Text('AI\u8bc4\u5224\u4e2d...').fontSize(12).fontColor('#999999').margin({ top: 4 });
+          }
         } else {
-          Button(this.currentIndex < this.questions.length - 1 ? '\u4E0B\u4E00\u9898' : '\u67E5\u770B\u62A5\u544A')
-            .width('100%')
+          Button(this.currentIndex < this.questions.length - 1
+            ? '\u4e0b\u4e00\u9898 \u2192'
+            : '\u67e5\u770b\u62a5\u544a')
+            .width('100%').height(44).borderRadius(22)
             .onClick(() => { this.nextQuestion(); });
         }
       }
@@ -280,4 +407,14 @@ struct AssessmentDetailPage {
     }
     .width('100%').height('100%');
   }
+}
+
+// 对话记录条目接口
+interface AnswerDetailItem {
+  questionText: string;
+  bloomLevel: BloomLevel;
+  userAnswerText: string;
+  evaluation: AiEvaluation;
+  score: number;
+  isCorrect: boolean;
 }

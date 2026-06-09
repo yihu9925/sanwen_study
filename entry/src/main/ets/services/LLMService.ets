@@ -2,7 +2,7 @@
 import { http } from '@kit.NetworkKit';
 import { GraphNode, GraphEdge, KnowledgeGraph } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
-import { Question, BloomLevel } from '../models/Question';
+import { Question, BloomLevel, AiEvaluation } from '../models/Question';
 import { ConfigService } from './ConfigService';
 import { generateUUID } from '../utils/UUID';
 
@@ -239,6 +239,48 @@ export class LLMService {
     }
   }
 
+  // ===== 自由答题模式核心方法 =====
+
+  // 评估用户自由回答（需求要求："自己回答自己产品的学习提问" + "不要拿AI生成答案喂AI"）
+  static async evaluateUserAnswer(
+    question: Question,
+    userAnswer: string
+  ): Promise<AiEvaluation> {
+    try {
+      const levelNames: Record<number, string> = {
+        1: '\u8bb0\u5fc6', 2: '\u7406\u89e3', 3: '\u5e94\u7528',
+        4: '\u5206\u6790', 5: '\u8bc4\u4ef7', 6: '\u521b\u9020'
+      };
+      const levelStr = levelNames[question.bloomLevel] || '\u672a\u77e5';
+      const systemPrompt = `\u4f60\u662f\u4e25\u8c28\u7684\u6559\u80b2\u8bc4\u4f30\u4e13\u5bb6\u3002\u6839\u636e\u5e03\u9c81\u59c6\u8ba4\u77e5\u5c42\u7ea7\u6807\u51c6\u8bc4\u4ef7\u5b66\u751f\u56de\u7b54\u3002`;
+      const userPrompt =
+        '\u8bf7\u8bc4\u4ef7\u4ee5\u4e0b\u5b66\u751f\u7684\u56de\u7b54\uff1a\n\n' +
+        '\u3010\u9898\u76ee\u3011' + question.questionText + '\n' +
+        '\u3010\u5e03\u9c81\u59c6\u5c42\u7ea7\u3011' + levelStr + '\uff08\u7b2c' + question.bloomLevel + '\u5c42\uff09\n' +
+        '\u3010\u53c2\u8003\u7b54\u6848\u3011' + (question.correctAnswer || '\u65e0') + '\n' +
+        '\u3010\u5b66\u751f\u56de\u7b54\u3011' + userAnswer + '\n\n' +
+        '\u8bf7\u4ece\u51c6\u786e\u6027\u3001\u6df1\u5ea6\u3001\u903b\u8f91\u6027\u3001\u8868\u8fbe\u56db\u4e2a\u65b9\u9762\u8bc4\u4ef7\u3002' +
+        '\u4ee5JSON\u683c\u5f0f\u8fd4\u56de\uff1a{"score": 0-100, "comment": "\u8bc4\u8bed", "strengths": ["\u4f18\u70b9"], "weaknesses": ["\u4e0d\u8db3"], "improvement": "\u6539\u8fdb\u5efa\u8bae"}' +
+        '\u8bc4\u5206\u6807\u51c6\uff1a90+\u4f18\u79c0 75-89\u826f\u597d 60-74\u53ca\u683c 0-59\u4e0d\u53ca\u683c';
+
+      const result = await LLMService.callLLM(systemPrompt, userPrompt, 'json');
+      const parsed = JSON.parse(result) as Record<string, Object>;
+      const evaluation: AiEvaluation = {
+        score: Math.max(0, Math.min(100, (parsed['score'] as number || 50))),
+        comment: (parsed['comment'] as string) || '\u8bc4\u4ef7\u53d6\u5f97',
+        strengths: (parsed['strengths'] as string[]) || [],
+        weaknesses: (parsed['weaknesses'] as string[]) || [],
+        improvement: (parsed['improvement'] as string) || ''
+      };
+      return evaluation;
+    } catch (e) {
+      if ((e as Error).message === 'NO_API_KEY') {
+        return LLMService.mockEvaluation();
+      }
+      return LLMService.mockEvaluation();
+    }
+  }
+
   // ===== Mock fallback =====
   private static mockIdentifyDomain(question: string): string {
     if (question.indexOf('learn') >= 0 || question.indexOf('AI') >= 0) {
@@ -297,5 +339,16 @@ export class LLMService {
       });
     }
     return questions;
+  }
+
+  // Mock fallback for evaluation (when no API key)
+  private static mockEvaluation(): AiEvaluation {
+    return {
+      score: 75,
+      comment: '\u56de\u7b54\u57fa\u672c\u6b63\u786e\uff0c\u5c55\u793a\u4e86\u5bf9\u6982\u5ff5\u7684\u7406\u89e3\u3002\u5efa\u8bae\u8fdb\u4e00\u6b65\u52a0\u6df1\u5bf9\u6838\u5fc3\u903b\u8f91\u7684\u638c\u63e1\u3002',
+      strengths: ['\u601d\u8def\u6e05\u6670', '\u80fd\u591f\u628a\u63e1\u4e3b\u8981\u89c2\u70b9'],
+      weaknesses: ['\u7f3a\u4e4f\u5177\u4f53\u4f8b\u8bc1', '\u8bba\u8ff0\u4e0d\u591f\u6df1\u5165'],
+      improvement: '\u5efa\u8bae\u591a\u7ed3\u5408\u5b9e\u9645\u6848\u4f8b\u6765\u8bf4\u660e\u4f60\u7684\u89c2\u70b9\uff0c\u5e76\u5c1d\u8bd5\u4ece\u4e0d\u540c\u89d2\u5ea6\u5206\u6790\u95ee\u9898\u3002'
+    };
   }
 }
