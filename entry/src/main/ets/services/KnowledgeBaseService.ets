@@ -4,7 +4,7 @@ import { KnowledgeGraph } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
 import { Document, DocumentSourceType, DocumentFileType } from '../models/Document';
 import { RelationalStoreManager } from './RelationalStoreManager';
-import { LLMService } from './LLMService';
+import { LLMService, DocSuggestion } from './LLMService';
 import { generateUUID } from '../utils/UUID';
 
 export class KnowledgeBaseService {
@@ -134,45 +134,35 @@ export class KnowledgeBaseService {
     return documents;
   }
 
-  // AI生成模拟资料（替代联网爬取）
-  // 先删除该课程已有的AI资料，再重新生成3篇，确保不重复
-  static async generateAIDocuments(courseId: string, content: string): Promise<number> {
+  // AI生成学习资料（调用LLM，篇数由问题复杂度决定）
+  // 先删除该课程已有的AI资料，再重新生成，确保不重复
+  static async generateAIDocuments(courseId: string, question: string): Promise<number> {
     try {
       const store: relationalStore.RdbStore = RelationalStoreManager.getStore();
       const now: string = new Date().toISOString();
-      const shortContent: string = content.length > 15 ? content.substring(0, 15) : (content || '\u901a\u7528\u77e5\u8bc6');
 
-      // 先删除该课程已有的所有AI资料，避免重复
+      // 先删除该课程已有的所有AI资料
       const delPredicates = new relationalStore.RdbPredicates('document');
       delPredicates.equalTo('course_id', courseId);
       delPredicates.equalTo('source_type', 'ai');
       await store.delete(delPredicates);
 
-      // 重新插入3篇资料
-      const titles: string[] = [
-        shortContent + '\u57fa\u7840\u6982\u5ff5\u4ecb\u7ecd',
-        shortContent + '\u6df1\u5165\u5206\u6790\u4e0e\u5e94\u7528',
-        shortContent + '\u7814\u7a76\u8d8b\u52bf\u4e0e\u524d\u6cbf',
-      ];
-
-      const contents: string[] = [
-        shortContent + '\u7684\u6838\u5fc3\u6982\u5ff5\u57fa\u7840\uff1a\u672c\u8282\u4ecb\u7ecd' + shortContent + '\u7684\u5b9a\u4e49\u3001\u6838\u5fc3\u601d\u60f3\u3001\u57fa\u672c\u539f\u7406\u548c\u5173\u952e\u672f\u8bed\uff0c\u5e2e\u52a9\u5b66\u4e60\u8005\u5feb\u901f\u5efa\u7acb\u77e5\u8bc6\u6846\u67b6\u3002',
-        shortContent + '\u7684\u5e94\u7528\u573a\u666f\u4e0e\u5b9e\u8df5\uff1a\u672c\u8282\u901a\u8fc7\u5177\u4f53\u6848\u4f8b\u8bf4\u660e' + shortContent + '\u5728\u5b9e\u9645\u5de5\u4f5c\u548c\u7814\u7a76\u4e2d\u7684\u5e94\u7528\u65b9\u6cd5\uff0c\u542b\u5e38\u89c1\u95ee\u9898\u89e3\u7b54\u3002',
-        shortContent + '\u7684\u5b66\u672f\u524d\u6cbf\u4e0e\u5c55\u671b\uff1a\u672c\u8282\u5173\u6ce8' + shortContent + '\u7684\u6700\u65b0\u7814\u7a76\u8fdb\u5c55\u3001\u4e0d\u540c\u5b66\u6d3e\u89c2\u70b9\u4e89\u8bae\u548c\u672a\u6765\u53d1\u5c55\u65b9\u5411\uff0c\u57f9\u517b\u6279\u5224\u6027\u601d\u7ef4\u3002',
-      ];
+      // 调用LLM生成学习资料（篇数由问题复杂度自动决定）
+      const docs: DocSuggestion[] = await LLMService.generateDocuments(question);
 
       let count: number = 0;
-      for (let i: number = 0; i < titles.length; i++) {
+      for (let i: number = 0; i < docs.length; i++) {
+        const doc: DocSuggestion = docs[i];
         const docId: string = generateUUID();
         const valueBucket: relationalStore.ValuesBucket = {};
         valueBucket['id'] = docId;
         valueBucket['course_id'] = courseId;
         valueBucket['source_type'] = 'ai';
-        valueBucket['title'] = titles[i];
-        valueBucket['content'] = contents[i];
+        valueBucket['title'] = doc.title;
+        valueBucket['content'] = doc.content;
         valueBucket['file_path'] = '';
         valueBucket['file_type'] = 'md';
-        valueBucket['keywords'] = '[]';
+        valueBucket['keywords'] = JSON.stringify(doc.keywords);
         valueBucket['uploaded_at'] = now;
         const rowId: number = await store.insert('document', valueBucket);
         if (rowId > 0) {
