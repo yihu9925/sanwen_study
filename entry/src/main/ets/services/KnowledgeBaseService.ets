@@ -199,4 +199,51 @@ export class KnowledgeBaseService {
     }
     return count;
   }
+
+  // 带课程信息的文档
+  static async getDocumentsByUser(userId: string): Promise<DocWithCourse[]> {
+    const store = RelationalStoreManager.getStore();
+    const sql: string = `
+      SELECT d.id, d.course_id, d.source_type, d.title, d.content,
+             d.file_path, d.file_type, d.keywords, d.uploaded_at,
+             c.title as course_title
+      FROM document d
+      JOIN course c ON d.course_id = c.id
+      WHERE c.user_id = ?
+      ORDER BY d.uploaded_at DESC
+    `;
+    const resultSet = await store.querySql(sql, [userId]);
+    const docs: DocWithCourse[] = [];
+
+    while (resultSet.goToNextRow()) {
+      docs.push({
+        id: resultSet.getString(0),
+        courseId: resultSet.getString(1),
+        sourceType: resultSet.getString(2) as DocumentSourceType,
+        title: resultSet.getString(3) || '',
+        content: resultSet.getString(4) || '',
+        filePath: resultSet.getString(5) || '',
+        fileType: resultSet.getString(6) as DocumentFileType || 'txt',
+        keywords: JSON.parse(resultSet.getString(7) || '[]'),
+        uploadedAt: resultSet.getString(8) || '',
+        courseTitle: resultSet.getString(9) || ''
+      });
+    }
+    resultSet.close();
+    return docs;
+  }
+}
+
+// 带课程信息的文档接口
+export interface DocWithCourse {
+  id: string;
+  courseId: string;
+  sourceType: DocumentSourceType;
+  title: string;
+  content: string;
+  filePath: string;
+  fileType: DocumentFileType;
+  keywords: string[];
+  uploadedAt: string;
+  courseTitle: string;
 }

@@ -1,6 +1,7 @@
-// 应用主入口 - 底部Tab导航（2个Tab：首页 / 个人中心）
+// 应用主入口 - 底部Tab导航（3个Tab：首页 / 知识库 / 个人中心）
 import { HomePage } from './HomePage';
 import { PersonalCenter } from './PersonalCenter';
+import { KnowledgeHub } from './KnowledgeHub';
 
 @Entry
 @Component
@@ -14,6 +15,11 @@ struct Index {
         HomePage();
       }
       .tabBar('\u9996\u9875');
+
+      TabContent() {
+        KnowledgeHub();
+      }
+      .tabBar('\u77E5\u8BC6\u5E93');
 
       TabContent() {
         PersonalCenter();
