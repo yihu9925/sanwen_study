@@ -39,6 +39,7 @@ struct CourseDetailPage {
   @State selectedGraphNodeId: string = ''; // 选中聚焦的图节点ID
   @State selectedDoc: Document | null = null;
   @State showDocSheet: boolean = false;
+  @State docParagraphs: string[] = [];
   private loadedOnce: boolean = false;
 
   aboutToAppear(): void {
@@ -681,6 +682,7 @@ struct CourseDetailPage {
                 .borderRadius(8)
                 .onClick(() => {
                   this.selectedDoc = this.documents[index];
+                  this.docParagraphs = (this.documents[index].content || '\u6682\u65E0\u5185\u5BB9').split('\n').filter((p: string): boolean => p.trim().length > 0);
                   this.showDocSheet = true;
                 });
               }
@@ -1064,11 +1066,14 @@ struct CourseDetailPage {
 
             Divider().margin({ top: 16, bottom: 16 });
 
-            Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
-              .fontSize(15)
-              .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-              .lineHeight(26)
-              .width('100%');
+            ForEach(this.docParagraphs, (para: string) => {
+              Text(para)
+                .fontSize(15)
+                .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+                .lineHeight(26)
+                .width('100%')
+                .margin({ bottom: 12 });
+            });
           }
           .width('100%')
           .padding(20);

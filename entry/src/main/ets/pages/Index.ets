@@ -37,9 +37,6 @@ struct Index {
     .barBackgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
     .onChange((index: number) => {
       this.activeTabIndex = index;
-      if (index === 1) {
-        this.knowledgeHubRefreshKey++;
-      }
     });
   }
 }

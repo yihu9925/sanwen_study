@@ -19,6 +19,7 @@ export struct KnowledgeHub {
   @State domains: string[] = [];
   @State selectedDoc: DocWithCourse | null = null;
   @State showDocSheet: boolean = false;
+  @State contentParagraphs: string[] = [];
   @State isLoading: boolean = true;
   @State errorMsg: string = '';
 
@@ -79,6 +80,7 @@ export struct KnowledgeHub {
 
   openDocDetail(doc: DocWithCourse): void {
     this.selectedDoc = doc;
+    this.contentParagraphs = (doc.content || '\u6682\u65E0\u5185\u5BB9').split('\n').filter((p: string): boolean => p.trim().length > 0);
     this.showDocSheet = true;
   }
 
@@ -397,11 +399,14 @@ export struct KnowledgeHub {
 
             Divider().margin({ top: 16, bottom: 16 });
 
-            Text(this.selectedDoc.content || '\u6682\u65E0\u5185\u5BB9')
-              .fontSize(15)
-              .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
-              .lineHeight(26)
-              .width('100%');
+            ForEach(this.contentParagraphs, (para: string) => {
+              Text(para)
+                .fontSize(15)
+                .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+                .lineHeight(26)
+                .width('100%')
+                .margin({ bottom: 12 });
+            });
           }
           .width('100%')
           .padding(20);
