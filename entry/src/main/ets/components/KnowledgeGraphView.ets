@@ -9,8 +9,8 @@ export struct KnowledgeGraphView {
   @State zoomScale: number = 1.0;
   @State offsetX: number = 0;
   @State offsetY: number = 0;
-  private canvasWidth: number = 350;
-  private canvasHeight: number = 350;
+  private canvasWidth: number = 400;
+  private canvasHeight: number = 400;
   private lastTouchX: number = 0;
   private lastTouchY: number = 0;
   private isDragging: boolean = false;
@@ -166,7 +166,7 @@ export struct KnowledgeGraphView {
       const nx = node.x * this.zoomScale + this.offsetX;
       const ny = node.y * this.zoomScale + this.offsetY;
       const dist = Math.sqrt((tx - nx) * (tx - nx) + (ty - ny) * (ty - ny));
-      if (dist <= node.radius * this.zoomScale + 10) {
+      if (dist <= node.radius * this.zoomScale + 20) {
         return node;
       }
     }
@@ -249,8 +249,8 @@ export struct KnowledgeGraphView {
         if (edge.label) {
           const midX = (fromNode.x + toNode.x) / 2;
           const midY = (fromNode.y + toNode.y) / 2;
-          this.context.fillStyle = '#999999';
-          this.context.font = '10px sans-serif';
+          this.context.fillStyle = '#666666';
+          this.context.font = '13px sans-serif';
           this.context.fillText(edge.label, midX, midY);
         }
       }
@@ -271,9 +271,9 @@ export struct KnowledgeGraphView {
       this.context.fill();
 
       this.context.fillStyle = '#333333';
-      this.context.font = '12px sans-serif';
+      this.context.font = 'bold 15px sans-serif';
       this.context.textAlign = 'center';
-      this.context.fillText(node.label, node.x, node.y + node.radius + 15);
+      this.context.fillText(node.label, node.x, node.y + node.radius + 20);
     }
 
     this.context.restore();
