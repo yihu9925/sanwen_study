@@ -18,7 +18,6 @@ export struct RadarChartView {
   private radius: number = 100;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
-  private contextB: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
 
   // 六个维度的标签
   private labels: string[] = ['记忆', '理解', '应用', '分析', '评价', '创造'];
@@ -36,8 +35,8 @@ export struct RadarChartView {
       .padding(16);
 
       // Canvas绑制区域（使用forceRedraw奇偶切换两个Canvas实例强制刷新）
-      if (this.forceRedraw % 2 === 0) {
-        Canvas(this.context)
+      Canvas(this.context)
+          .key('radar_' + this.forceRedraw)
           .width(this.canvasSize)
           .height(this.canvasSize)
           .backgroundColor('#FAFAFA')
@@ -45,16 +44,6 @@ export struct RadarChartView {
           .onReady(() => {
             this.drawRadarChart();
           });
-      } else {
-        Canvas(this.contextB)
-          .width(this.canvasSize)
-          .height(this.canvasSize)
-          .backgroundColor('#FAFAFA')
-          .borderRadius(8)
-          .onReady(() => {
-            this.drawRadarChart();
-          });
-      }
 
       // 维度详情
       this.DimensionDetails();
