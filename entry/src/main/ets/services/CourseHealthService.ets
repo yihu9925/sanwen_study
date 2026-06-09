@@ -1,6 +1,7 @@
 // 课程内容健康检测服务
 // 检测三问中哪些部分缺失，并支持逐个补全
 import { relationalStore } from '@kit.ArkData';
+import { Document } from '../models/Document';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { KnowledgeBaseService } from './KnowledgeBaseService';
 import { AssessmentService } from './AssessmentService';
@@ -100,10 +101,39 @@ export class CourseHealthService {
     };
   }
 
+  // 获取课程资料库内容（合并所有文档内容到LLM提示词）
+  private static async getMaterialContent(courseId: string, question: string): Promise<string> {
+    try {
+      const docs: Document[] = await KnowledgeBaseService.getDocuments(courseId);
+      if (docs.length === 0) {
+        return question;
+      }
+      let docTexts: string[] = [];
+      for (let d = 0; d < docs.length; d++) {
+        const doc: Document = docs[d];
+        if (doc.content) {
+          const snippet: string = doc.content.length > 500
+            ? doc.content.substring(0, 500)
+            : doc.content;
+          docTexts.push('\u3010' + doc.title + '\u3011' + snippet);
+        }
+      }
+      if (docTexts.length === 0) {
+        return question;
+      }
+      const combined: string = docTexts.join('\n');
+      return question + '\n\n---\n\u53c2\u8003\u8d44\u6599\uff1a\n' +
+        (combined.length > 5000 ? combined.substring(0, 5000) : combined);
+    } catch (e) {
+      return question;
+    }
+  }
+
   // 补全缺失的 Q1（知识图谱）
   static async fillQ1KnowledgeGraph(courseId: string, question: string): Promise<boolean> {
     try {
-      await KnowledgeBaseService.generateKnowledgeGraph(courseId, question);
+      const material: string = await CourseHealthService.getMaterialContent(courseId, question);
+      await KnowledgeBaseService.generateKnowledgeGraph(courseId, material);
       await CourseService.updateProgress(courseId, 1);
       return true;
     } catch (e) {
@@ -114,7 +144,8 @@ export class CourseHealthService {
   // 补全缺失的 Q2（争议点）
   static async fillQ2Controversies(courseId: string, question: string): Promise<boolean> {
     try {
-      await KnowledgeBaseService.discoverControversies(courseId, question);
+      const material: string = await CourseHealthService.getMaterialContent(courseId, question);
+      await KnowledgeBaseService.discoverControversies(courseId, material);
       await CourseService.updateProgress(courseId, 2);
       return true;
     } catch (e) {
@@ -125,11 +156,13 @@ export class CourseHealthService {
   // 补全缺失的 Q3（测评题）
   static async fillQ3Questions(courseId: string, content: string): Promise<boolean> {
     try {
-      await AssessmentService.generateQuestions(courseId, content, 1, 5);
+      const material: string = await CourseHealthService.getMaterialContent(courseId, content);
+      await AssessmentService.generateQuestions(courseId, material, 1, 5);
       await CourseService.updateProgress(courseId, 3);
       return true;
     } catch (e) {
       return false;
     }
+    }
   }
-}
+

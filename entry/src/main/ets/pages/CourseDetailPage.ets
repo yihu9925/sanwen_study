@@ -165,34 +165,56 @@ struct CourseDetailPage {
     try {
       this.isLoading = true;
       
-      // 生成知识图谱
+      // 先加载资料库文档，作为LLM生成的基础素材
+      await this.loadDocuments();
+      let materialContent: string = this.course.question;
+      
+      // 将资料库中的文档内容追加到请求中（截取前5000字符）
+      if (this.documents.length > 0) {
+        let docTexts: string[] = [];
+        for (let d = 0; d < this.documents.length; d++) {
+          const doc = this.documents[d];
+          if (doc.content) {
+            const snippet: string = doc.content.length > 500
+              ? doc.content.substring(0, 500)
+              : doc.content;
+            docTexts.push('\u3010' + doc.title + '\u3011' + snippet);
+          }
+        }
+        if (docTexts.length > 0) {
+          const combined: string = docTexts.join('\n');
+          materialContent = this.course.question + '\n\n---\n\u53c2\u8003\u8d44\u6599\uff1a\n' +
+            (combined.length > 5000 ? combined.substring(0, 5000) : combined);
+        }
+      }
+
+      // 生成知识图谱（基于资料库内容）
       await KnowledgeBaseService.generateKnowledgeGraph(
         this.courseId,
-        this.course.question
+        materialContent
       );
 
-      // 生成争议点
+      // 生成争议点（基于资料库内容）
       await KnowledgeBaseService.discoverControversies(
         this.courseId,
-        this.course.question
+        materialContent
       );
 
-      // 生成测评题
+      // 生成测评题（基于资料库内容）
       await AssessmentService.generateQuestions(
         this.courseId,
-        this.course.question,
+        materialContent,
         1,
         5
       );
 
       const courseTitle: string = this.course?.title || '';
-      // 重新加载课程数据
       this.course = await CourseService.getCourseById(this.courseId);
 
-      promptAction.showToast({ message: courseTitle + ' 生成完毕' });
+      promptAction.showToast({ message: courseTitle + ' \u751f\u6210\u5b8c\u6bd5' });
     } catch (error) {
       console.error('Generate content failed:', error);
-      promptAction.showToast({ message: '内容生成失败' });
+      promptAction.showToast({ message: '\u5185\u5bb9\u751f\u6210\u5931\u8d25' });
     } finally {
       this.isLoading = false;
     }
