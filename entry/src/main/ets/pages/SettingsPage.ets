@@ -3,11 +3,15 @@ import { AppRouter } from '../AppRouter';
 import { promptAction } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { ConfigService } from '../services/ConfigService';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Entry
 @Component
 struct SettingsPage {
-  @State isDarkMode: boolean = false;
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
+
   @State enableNotification: boolean = true;
   @State apiKey: string = '';
   @State apiBase: string = 'https://api.openai.com/v1';
@@ -17,10 +21,10 @@ struct SettingsPage {
   @State testStatus: string = '\u68c0\u6d4bAI\u8fde\u901a\u6027';
   @State testResult: number = -1;  // -1=未测试, 0=失败, 1=成功
   @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
 
   aboutToAppear(): void {
     this.loadConfig();
-    this.isDarkMode = this.themeMode === 'dark';
   }
 
   async loadConfig(): Promise<void> {
@@ -28,13 +32,6 @@ struct SettingsPage {
     this.apiKey = config.apiKey ? '...' + config.apiKey.substring(config.apiKey.length - 4) : '\u672A\u8BBE\u7F6E';
     this.apiBase = config.apiBase;
     this.model = config.model;
-  }
-
-  setDarkMode(enabled: boolean): void {
-    this.isDarkMode = enabled;
-    this.themeMode = enabled ? 'dark' : 'light';
-    AppStorage.set('themeMode', this.themeMode);
-    promptAction.showToast({ message: '深色模式已' + (enabled ? '开启' : '关闭') });
   }
 
   // 构建测试JSON体
@@ -97,14 +94,14 @@ struct SettingsPage {
       }
       .width('100%')
       .padding(16)
-      .backgroundColor(this.isDarkMode ? '#333333' : Color.White);
+      .backgroundColor(this.colors().cardBg);
 
       Scroll() {
         Column() {
           // AI\u914D\u7F6E\u533A\u5757
           Text('AI \u914D\u7F6E')
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(this.colors().textSecondary)
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
@@ -194,7 +191,7 @@ struct SettingsPage {
             .padding(16);
           }
           .width('100%')
-          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
+          .backgroundColor(this.colors().cardBg);
 
           // AI连通性检测
           Row() {
@@ -218,28 +215,13 @@ struct SettingsPage {
           }
           .width('100%')
           .padding(16)
-          .backgroundColor(this.isDarkMode ? '#444444' : Color.White)
+          .backgroundColor(this.colors().cardBg)
           .borderRadius(12);
-
-          // \u5916\u89C2
-          Text('\u5916\u89C2')
-            .fontSize(14)
-            .fontColor('#666666')
-            .width('100%')
-            .padding({ left: 16, top: 16, bottom: 8 });
-
-          Column() {
-            this.SettingItem('\u6DF1\u8272\u6A21\u5F0F', this.isDarkMode, (value: boolean) => {
-              this.setDarkMode(value);
-            });
-          }
-          .width('100%')
-          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
 
           // \u901A\u77E5
           Text('\u901A\u77E5')
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(this.colors().textSecondary)
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
@@ -250,12 +232,12 @@ struct SettingsPage {
             });
           }
           .width('100%')
-          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
+          .backgroundColor(this.colors().cardBg);
 
           // \u5176\u4ED6
           Text('\u5176\u4ED6')
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(this.colors().textSecondary)
             .width('100%')
             .padding({ left: 16, top: 16, bottom: 8 });
 
@@ -273,7 +255,7 @@ promptAction.showToast({ message: '\u6570\u636E\u5DF2\u5BFC\u51FA (JSON)' });
             });
           }
           .width('100%')
-          .backgroundColor(this.isDarkMode ? '#444444' : Color.White);
+          .backgroundColor(this.colors().cardBg);
         }
         .width('100%');
       }
@@ -281,7 +263,7 @@ promptAction.showToast({ message: '\u6570\u636E\u5DF2\u5BFC\u51FA (JSON)' });
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.isDarkMode ? '#222222' : '#F5F5F5');
+    .backgroundColor(this.colors().pageBg);
   }
 
   @Builder
@@ -289,7 +271,7 @@ promptAction.showToast({ message: '\u6570\u636E\u5DF2\u5BFC\u51FA (JSON)' });
     Row() {
       Text(title)
         .fontSize(16)
-        .fontColor(this.isDarkMode ? '#FFFFFF' : '#000000');
+        .fontColor(this.colors().textPrimary);
       Toggle({ type: ToggleType.Switch, isOn: value }).onChange(onChange);
     }
     .width('100%')
@@ -302,7 +284,7 @@ promptAction.showToast({ message: '\u6570\u636E\u5DF2\u5BFC\u51FA (JSON)' });
     Row() {
       Text(title)
         .fontSize(16)
-        .fontColor(this.isDarkMode ? '#FFFFFF' : '#000000')
+        .fontColor(this.colors().textPrimary)
         .layoutWeight(1);
       Text('>').fontSize(20).fontColor('#CCCCCC');
     }

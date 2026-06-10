@@ -1,20 +1,24 @@
 // 第三问：深度测评（独立页面 - 题目概览+答题入口）
-import { router } from '@kit.ArkUI';
-import { promptAction } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { fileIo } from '@kit.CoreFileKit';
 import { relationalStore } from '@kit.ArkData';
 import { Question, BloomLevel, getBloomLevelName } from '../models/Question';
 import { AssessmentService } from '../services/AssessmentService';
+import { ExportService } from '../services/ExportService';
 import { RelationalStoreManager } from '../services/RelationalStoreManager';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Entry
 @Component
 struct Q3_AssessmentPage {
   @State courseId: string = '';
   @State questions: Question[] = [];
-  @State bloomFilter: number = 0;       // 0=全部, 1-6=按层级
+  @State bloomFilter: number = 0;
   @State isLoading: boolean = false;
   @State answeredCount: number = 0;
   @State averageScore: number = 0;
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -68,6 +72,32 @@ struct Q3_AssessmentPage {
     });
   }
 
+  async exportReport(format: string): Promise<void> {
+    try {
+      let content = '';
+      const title = '\u4e09\u95ee\u9ad8\u6548\u5b66\u4e60\u673a';
+      if (format === 'json') {
+        content = await ExportService.exportReportAsJSON(this.courseId, title);
+      } else {
+        content = await ExportService.exportReportAsMarkdown(this.courseId, title);
+      }
+      const context: Context = getContext(this) as Context;
+      const dir: string = context.filesDir;
+      const timestamp: string = new Date().getTime().toString();
+      const fileName: string = 'report_' + timestamp + (format === 'json' ? '.json' : '.md');
+      const filePath: string = dir + '/' + fileName;
+      const file: fileIo.File = fileIo.openSync(filePath, fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY);
+      fileIo.writeSync(file.fd, content);
+      fileIo.closeSync(file);
+      promptAction.showToast({ message: '\u5bfc\u51fa\u6210\u529f\uff1a' + fileName });
+    } catch (e) {
+      console.error('Export failed: ' + (e as Error).message);
+      promptAction.showToast({ message: '\u5bfc\u51fa\u5931\u8d25' });
+    }
+  }
+
+  colors(): StyleColors { return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark'); }
+
   build() {
     Column() {
       Row() {
@@ -75,30 +105,30 @@ struct Q3_AssessmentPage {
         Text('\u7b2c\u4e09\u95ee\uff1a\u8ba4\u77e5\u6d4b\u8bc4')
           .fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1).textAlign(TextAlign.Center);
       }
-      .width('100%').padding(16).backgroundColor(Color.White);
+      .width('100%').padding(16).backgroundColor(this.colors().cardBg);
 
       // 进度概览
       Row() {
         Column() {
           Text(String(this.questions.length)).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#007DFF');
-          Text('\u603b\u9898\u6570').fontSize(12).fontColor('#999999');
+          Text('\u603B\u9898\u6570').fontSize(12).fontColor(this.colors().textTertiary);
         }
         .layoutWeight(1).alignItems(HorizontalAlign.Center);
 
         Column() {
           Text(String(this.answeredCount)).fontSize(20).fontWeight(FontWeight.Bold).fontColor('#4CAF50');
-          Text('\u5df2\u7b54').fontSize(12).fontColor('#999999');
+          Text('\u5DF2\u7B54').fontSize(12).fontColor(this.colors().textTertiary);
         }
         .layoutWeight(1).alignItems(HorizontalAlign.Center);
 
         Column() {
           Text(String(this.averageScore)).fontSize(20).fontWeight(FontWeight.Bold)
             .fontColor(this.averageScore >= 60 ? '#4CAF50' : '#FF9800');
-          Text('\u5747\u5206').fontSize(12).fontColor('#999999');
+          Text('\u5747\u5206').fontSize(12).fontColor(this.colors().textTertiary);
         }
         .layoutWeight(1).alignItems(HorizontalAlign.Center);
       }
-      .width('100%').padding(16).backgroundColor(Color.White).margin({ top: 1 });
+      .width('100%').padding(16).backgroundColor(this.colors().cardBg).margin({ top: 1 });
 
       // 维度过滤器
       Row() {
@@ -132,14 +162,14 @@ struct Q3_AssessmentPage {
                   Text(q.questionText).fontSize(14).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis });
                   Row() {
                     Text(getBloomLevelName(q.bloomLevel))
-                      .fontSize(11).fontColor('#007DFF').padding({ left: 4, right: 4 }).backgroundColor('#E6F7FF').borderRadius(4);
+                      .fontSize(11).fontColor('#007DFF').padding({ left: 4, right: 4 }).backgroundColor(this.colors().accentLight).borderRadius(4);
                     Text('\u2b50'.repeat(q.difficulty)).fontSize(11).margin({ left: 8 });
                   }
                   .margin({ top: 4 });
                 }
                 .layoutWeight(1).alignItems(HorizontalAlign.Start);
               }
-              .width('100%').padding(12).backgroundColor(Color.White).borderRadius(8);
+              .width('100%').padding(12).backgroundColor(this.colors().cardBg).borderRadius(8);
             }
             .margin({ bottom: 6 });
           });
@@ -149,19 +179,37 @@ struct Q3_AssessmentPage {
 
       // 开始答题按钮
       Button('\u25b6 \u5f00\u59cb\u7b54\u9898')
-        .width('80%').height(44).borderRadius(22).margin({ bottom: 16 })
+        .width('80%').height(44).borderRadius(22).margin({ bottom: this.answeredCount > 0 ? 8 : 16 })
         .onClick(() => { this.startAssessment(); });
+
+      // 导出按钮（答完题后可导出报告）
+      if (this.answeredCount > 0) {
+        Row() {
+          Button('\u5bfc\u51fa JSON')
+            .height(40).borderRadius(20)
+            .backgroundColor(this.colors().accentLight).fontColor('#007DFF')
+            .layoutWeight(1).margin({ right: 4 })
+            .onClick(() => { this.exportReport('json'); });
+
+          Button('\u5bfc\u51fa Markdown')
+            .height(40).borderRadius(20)
+            .backgroundColor(this.colors().cardBg).fontColor('#FF9800')
+            .layoutWeight(1).margin({ left: 4 })
+            .onClick(() => { this.exportReport('md'); });
+        }
+        .width('80%').margin({ bottom: 16 });
+      }
     }
-    .width('100%').height('100%').backgroundColor('#F5F5F5');
+    .width('100%').height('100%').backgroundColor(this.colors().pageBg);
   }
 
   @Builder
   FilterChip(label: string, level: number): void {
     Row() {
-      Text(label).fontSize(12).fontColor(this.bloomFilter === level ? Color.White : '#666666');
+      Text(label).fontSize(12).fontColor(this.bloomFilter === level ? Color.White : this.colors().textSecondary);
     }
     .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-    .backgroundColor(this.bloomFilter === level ? '#007DFF' : '#E0E0E0')
+    .backgroundColor(this.bloomFilter === level ? '#007DFF' : this.colors().divider)
     .borderRadius(12).margin({ right: 6 })
     .onClick(() => { this.bloomFilter = level; });
   }

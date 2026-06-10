@@ -15,11 +15,3 @@ export interface Controversy {
   aiSummary: string;         // AI总结
 }
 
-// 创建默认证据
-export function createDefaultEvidence(title: string, content: string): Evidence {
-  return {
-    title: title,
-    content: content,
-    source: ''
-  };
-}

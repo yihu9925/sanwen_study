@@ -65,8 +65,28 @@ export default class EntryAbility extends UIAbility {
         }, 500);
         return;
       }
+      // 设置系统导航栏颜色跟随主题
+      this.setSystemBarTheme(AppStorage.get('themeMode') as string || 'auto');
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
+  }
+
+  private async setSystemBarTheme(themeMode: string): Promise<void> {
+    if (!this.appWindowStage) {
+      return;
+    }
+    try {
+      const mainWindow = await this.appWindowStage.getMainWindow();
+      const isDark: boolean = themeMode === 'dark';
+      mainWindow.setWindowSystemBarProperties({
+        navigationBarColor: isDark ? '#222222' : '#FFFFFF',
+        navigationBarContentColor: isDark ? '#FFFFFF' : '#000000',
+        statusBarColor: isDark ? '#222222' : '#FFFFFF',
+        statusBarContentColor: isDark ? '#FFFFFF' : '#000000'
+      });
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set system bar theme. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onWindowStageDestroy(): void {

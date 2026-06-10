@@ -1,5 +1,4 @@
 // 首页 - 课程列表与搜索
-import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
 import { Course } from '../models/Course';
 import { CourseService } from '../services/CourseService';
@@ -7,6 +6,7 @@ import { LLMService } from '../services/LLMService';
 import { CourseHealthService, CourseContentStatus } from '../services/CourseHealthService';
 import { AppRouter } from '../AppRouter';
 import { getTimeAgo } from '../utils/DateUtils';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Component
 export struct HomePage {
@@ -16,6 +16,7 @@ export struct HomePage {
   @State pageState: 'loading' | 'content' | 'empty' | 'error' = 'loading';
   private userId: string = 'default_user';
   @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
 
   aboutToAppear(): void {
     this.loadCourses();
@@ -32,7 +33,6 @@ export struct HomePage {
     try {
       this.pageState = 'loading';
       const allCourses = await CourseService.getCoursesByUser(this.userId);
-      // 过滤掉已归档的课程（归档课程在归档管理页查看）
       this.courses = allCourses.filter(c => c.status !== 'archived');
       // 检测每个课程的内容健康状态
       const healthMap: Record<string, CourseContentStatus> = {};
@@ -85,11 +85,15 @@ export struct HomePage {
     }
   }
 
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
+
   build() {
     Column() {
       // 顶部搜索栏
       this.SearchBar();
-      
+
       // 内容区域
       if (this.pageState === 'loading') {
         this.LoadingContent();
@@ -98,12 +102,24 @@ export struct HomePage {
       } else if (this.pageState === 'error') {
         this.ErrorContent();
       } else {
-        this.CourseList();
+        // 课程列表（直接嵌入 build，确保 @State 变化时必更新）
+        List() {
+          ForEach(this.courses, (course: Course) => {
+            ListItem() {
+              this.CourseCard(course);
+            }
+            .margin({ bottom: 12 });
+          });
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .padding(16)
+        .listDirection(Axis.Vertical);
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor(this.colors().pageBg)
   }
 
   @Builder
@@ -129,7 +145,7 @@ export struct HomePage {
         TextInput({ placeholder: '提出你的学习问题...', text: this.searchText })
           .layoutWeight(1)
           .height(48)
-          .backgroundColor(Color.White)
+          .backgroundColor(this.colors().cardBg)
           .borderRadius(24)
           .padding({ left: 16, right: 16 })
           .onChange((value: string) => {
@@ -152,7 +168,7 @@ export struct HomePage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White);
+    .backgroundColor(this.colors().cardBg);
   }
 
   @Builder
@@ -161,11 +177,11 @@ export struct HomePage {
       LoadingProgress()
         .width(48)
         .height(48)
-        .color('#007DFF');
+        .color(this.colors().accent);
       
       Text('加载中...')
         .fontSize(14)
-        .fontColor('#999999')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 12 });
     }
     .width('100%')
@@ -181,7 +197,7 @@ export struct HomePage {
       
       Text('提出你的学习问题，开始吧！')
         .fontSize(16)
-        .fontColor('#999999')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 16 });
     }
     .width('100%')
@@ -197,7 +213,7 @@ export struct HomePage {
       
       Text('加载失败，点击重试')
         .fontSize(16)
-        .fontColor('#999999')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 16 });
 
       Button('重试')
@@ -209,22 +225,6 @@ export struct HomePage {
     .width('100%')
     .layoutWeight(1)
     .justifyContent(FlexAlign.Center);
-  }
-
-  @Builder
-  CourseList(): void {
-    List() {
-      ForEach(this.courses, (course: Course) => {
-        ListItem() {
-          this.CourseCard(course);
-        }
-        .margin({ bottom: 12 });
-      });
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .padding(16)
-    .listDirection(Axis.Vertical);
   }
 
   @Builder
@@ -240,12 +240,12 @@ export struct HomePage {
 
           Text(course.domain)
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(this.colors().textSecondary)
             .margin({ top: 4 });
 
           Text(course.question)
             .fontSize(12)
-            .fontColor('#999999')
+            .fontColor(this.colors().textTertiary)
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ top: 8 });
@@ -258,11 +258,11 @@ export struct HomePage {
           Text(course.progressPercent + '%')
             .fontSize(24)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#007DFF');
+            .fontColor(this.colors().accent);
 
           Text(this.getStatusText(course.status))
             .fontSize(12)
-            .fontColor('#999999')
+            .fontColor(this.colors().textTertiary)
             .margin({ top: 4 });
         }
         .alignItems(HorizontalAlign.Center);
@@ -274,12 +274,12 @@ export struct HomePage {
         Row()
           .width(course.progressPercent + '%')
           .height(4)
-          .backgroundColor('#007DFF')
+          .backgroundColor(this.colors().accent)
           .borderRadius(2);
       }
       .width('100%')
       .height(4)
-      .backgroundColor('#E5E5E5')
+      .backgroundColor(this.colors().divider)
       .borderRadius(2)
       .margin({ top: 12 });
 
@@ -306,15 +306,15 @@ export struct HomePage {
 
       Text(getTimeAgo(course.lastAccessedAt))
           .fontSize(12)
-          .fontColor('#CCCCCC')
+          .fontColor(this.colors().textTertiary)
           .layoutWeight(1);
 
         // 归档按钮
         if (course.status !== 'archived') {
           Button('\u5f52\u6863')
-            .fontSize(11).fontColor('#999999')
+            .fontSize(11).fontColor(this.colors().textTertiary)
             .height(26).borderRadius(13)
-            .backgroundColor('#F5F5F5').margin({ left: 4 })
+            .backgroundColor(this.colors().divider).margin({ left: 4 })
             .onClick(() => {
               CourseService.updateCourseStatus(course.id, 'archived').then(() => {
                 promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
@@ -322,8 +322,6 @@ export struct HomePage {
               }).catch(() => {
                 promptAction.showToast({ message: '\u5f52\u6863\u5931\u8d25' });
               });
-              promptAction.showToast({ message: course.title + ' \u5df2\u5f52\u6863' });
-              this.loadCourses();
             });
         }
 
@@ -331,7 +329,7 @@ export struct HomePage {
         Button('\u5220\u9664')
           .fontSize(11).fontColor('#FF4D4F')
           .height(26).borderRadius(13)
-          .backgroundColor('#FFF1F0').margin({ left: 4 })
+          .backgroundColor(this.themeMode === 'dark' ? '#3A1A1A' : '#FFF1F0').margin({ left: 4 })
           .onClick(() => {
             promptAction.showDialog({
               title: '\u786e\u8ba4\u5220\u9664',
@@ -353,8 +351,8 @@ export struct HomePage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(Color.White)
-    .borderRadius(12)
+    .backgroundColor(this.colors().cardBg)
+    .borderRadius(this.colors().cardRadius)
     .onClick(() => {
       AppRouter.toCourseDetail(course.id);
     });

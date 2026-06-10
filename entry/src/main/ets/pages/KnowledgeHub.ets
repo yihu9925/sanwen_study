@@ -4,11 +4,13 @@ import { CourseService } from '../services/CourseService';
 import { Course } from '../models/Course';
 import { getTimeAgo } from '../utils/DateUtils';
 import { parseContentSegments, ContentSegment } from '../utils/ContentUtils';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Component
 export struct KnowledgeHub {
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;
   @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
 
   private userId: string = 'default_user';
 
@@ -22,6 +24,10 @@ export struct KnowledgeHub {
   @State contentSegments: ContentSegment[] = [];
   @State isLoading: boolean = true;
   @State errorMsg: string = '';
+
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
 
   aboutToAppear(): void {
     this.loadData();
@@ -99,7 +105,7 @@ export struct KnowledgeHub {
         Text('\uD83D\uDCDA \u77E5\u8BC6\u5E93')
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
-          .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A');
+          .fontColor(this.colors().textPrimary);
       }
       .width('100%')
       .padding(16);
@@ -109,8 +115,8 @@ export struct KnowledgeHub {
         .width('100%')
         .height(40)
         .padding({ left: 12, right: 12 })
-        .backgroundColor(this.themeMode === 'dark' ? '#333333' : '#F5F5F5')
-        .placeholderColor(this.themeMode === 'dark' ? '#888888' : '#CCCCCC')
+        .backgroundColor(this.colors().cardBg)
+        .placeholderColor(this.colors().textTertiary)
         .borderRadius(20)
         .onChange((val: string) => this.onSearchChange(val));
 
@@ -118,10 +124,8 @@ export struct KnowledgeHub {
       Row() {
         Button('\u5168\u90E8')
           .fontSize(13)
-          .fontColor(this.activeFilter === 'all' ? Color.White :
-            (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
-          .backgroundColor(this.activeFilter === 'all' ? '#007DFF' :
-            (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
+          .fontColor(this.activeFilter === 'all' ? Color.White : this.colors().textSecondary)
+          .backgroundColor(this.activeFilter === 'all' ? '#007DFF' : this.colors().divider)
           .borderRadius(16)
           .height(32)
           .margin({ right: 8 })
@@ -132,10 +136,8 @@ export struct KnowledgeHub {
         ForEach(this.domains, (domain: string) => {
           Button(domain)
             .fontSize(13)
-            .fontColor(this.activeFilter === domain ? Color.White :
-              (this.themeMode === 'dark' ? '#CCCCCC' : '#666666'))
-            .backgroundColor(this.activeFilter === domain ? '#007DFF' :
-              (this.themeMode === 'dark' ? '#444444' : '#F0F0F0'))
+            .fontColor(this.activeFilter === domain ? Color.White : this.colors().textSecondary)
+            .backgroundColor(this.activeFilter === domain ? '#007DFF' : this.colors().divider)
             .borderRadius(16)
             .height(32)
             .margin({ right: 8 })
@@ -163,10 +165,10 @@ export struct KnowledgeHub {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#FFFFFF')
+    .backgroundColor(this.colors().pageBg)
     .bindSheet($$this.showDocSheet, this.DocSheet(), {
       height: 600,
-      backgroundColor: this.themeMode === 'dark' ? '#222222' : Color.White,
+      backgroundColor: this.colors().pageBg,
       dragBar: true
     });
   }
@@ -178,19 +180,19 @@ export struct KnowledgeHub {
         Text(seg.content)
           .fontSize(14)
           .fontFamily('Courier New')
-          .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+          .fontColor(this.colors().textPrimary)
           .lineHeight(22)
           .width('100%');
       }
       .width('100%')
       .padding(12)
-      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+      .backgroundColor(this.colors().pageBg)
       .borderRadius(8)
       .margin({ bottom: 12 });
     } else {
       Text(seg.content)
         .fontSize(15)
-        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+        .fontColor(this.colors().textSecondary)
         .lineHeight(26)
         .width('100%')
         .textIndent(32)
@@ -216,7 +218,7 @@ export struct KnowledgeHub {
           }
           .width('100%')
           .padding(16)
-          .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+          .backgroundColor(this.colors().pageBg)
           .borderRadius(10);
         }
         .width('100%')
@@ -253,11 +255,11 @@ export struct KnowledgeHub {
         .fontSize(64);
       Text('\u6682\u65E0\u77E5\u8BC6\u5E93\u8D44\u6599')
         .fontSize(16)
-        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 16 });
       Text('\u8BF7\u5148\u521B\u5EFA\u8BFE\u7A0B\uFF0CAI\u4F1A\u81EA\u52A8\u751F\u6210\u5B66\u4E60\u8D44\u6599')
         .fontSize(13)
-        .fontColor(this.themeMode === 'dark' ? '#888888' : '#BBBBBB')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 8 });
       Button('\u53BB\u521B\u5EFA\u8BFE\u7A0B')
         .fontSize(14)
@@ -278,7 +280,7 @@ export struct KnowledgeHub {
         .fontSize(48);
       Text('\u6CA1\u6709\u5339\u914D\u7684\u8D44\u6599')
         .fontSize(16)
-        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
+        .fontColor(this.colors().textTertiary)
         .margin({ top: 16 });
     }
     .width('100%')
@@ -301,14 +303,14 @@ export struct KnowledgeHub {
                 Text(doc.title)
                   .fontSize(15)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A')
+                  .fontColor(this.colors().textPrimary)
                   .lineHeight(22)
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis });
 
                 Text('\u8BFE\u7A0B\uFF1A' + doc.courseTitle)
                   .fontSize(12)
-                  .fontColor(this.themeMode === 'dark' ? '#AAAAAA' : '#888888')
+                  .fontColor(this.colors().textSecondary)
                   .margin({ top: 4 });
 
                 Row() {
@@ -316,12 +318,12 @@ export struct KnowledgeHub {
                     .fontSize(11)
                     .fontColor('#007DFF')
                     .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                    .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
+                    .backgroundColor(this.colors().accentLight)
                     .borderRadius(4);
 
                   Text(getTimeAgo(doc.uploadedAt))
                     .fontSize(11)
-                    .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                    .fontColor(this.colors().textTertiary)
                     .margin({ left: 8 });
                 }
                 .margin({ top: 4 });
@@ -331,7 +333,7 @@ export struct KnowledgeHub {
             }
             .width('100%')
             .padding(16)
-            .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+            .backgroundColor(this.colors().cardBg)
             .borderRadius(10);
           }
           .width('100%')
@@ -355,7 +357,7 @@ export struct KnowledgeHub {
             Text(this.selectedDoc.title)
               .fontSize(22)
               .fontWeight(FontWeight.Bold)
-              .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A')
+              .fontColor(this.colors().textPrimary)
               .lineHeight(30)
               .width('100%');
 
@@ -364,16 +366,14 @@ export struct KnowledgeHub {
                 .fontSize(12)
                 .fontColor('#007DFF')
                 .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
+                .backgroundColor(this.colors().accentLight)
                 .borderRadius(4);
 
               Text(this.selectedDoc.sourceType === 'ai' ? 'AI\u751F\u6210' : '\u7528\u6237\u4E0A\u4F20')
                 .fontSize(12)
                 .fontColor(this.selectedDoc.sourceType === 'ai' ? '#52C41A' : '#FA8C16')
                 .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .backgroundColor(this.selectedDoc.sourceType === 'ai' ?
-                  (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED') :
-                  (this.themeMode === 'dark' ? '#2A1A0A' : '#FFF7E6'))
+                .backgroundColor(this.colors().accentLight)
                 .borderRadius(4)
                 .margin({ left: 8 });
             }
@@ -383,11 +383,11 @@ export struct KnowledgeHub {
             Row() {
               Text('\u8BFE\u7A0B\uFF1A' + this.selectedDoc.courseTitle)
                 .fontSize(13)
-                .fontColor(this.themeMode === 'dark' ? '#AAAAAA' : '#888888');
+                .fontColor(this.colors().textSecondary);
               Blank();
               Text(getTimeAgo(this.selectedDoc.uploadedAt))
                 .fontSize(12)
-                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA');
+                .fontColor(this.colors().textTertiary);
             }
             .width('100%')
             .margin({ top: 6 });
@@ -397,9 +397,9 @@ export struct KnowledgeHub {
                 ForEach(this.selectedDoc.keywords, (kw: string) => {
                   Text(kw)
                     .fontSize(12)
-                    .fontColor(this.themeMode === 'dark' ? '#BBBBBB' : '#666666')
+                    .fontColor(this.colors().textSecondary)
                     .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                    .backgroundColor(this.themeMode === 'dark' ? '#444444' : '#F0F0F0')
+                    .backgroundColor(this.colors().divider)
                     .borderRadius(12)
                     .margin({ right: 6, bottom: 6 });
                 });
@@ -417,14 +417,14 @@ export struct KnowledgeHub {
             if (this.contentSegments.length === 0) {
               Text('\u6682\u65E0\u5185\u5BB9')
                 .fontSize(15)
-                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .fontColor(this.colors().textTertiary)
                 .width('100%');
             }
 
             if (this.contentSegments.length === 0) {
               Text('\u6682\u65E0\u5185\u5BB9')
                 .fontSize(15)
-                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .fontColor(this.colors().textTertiary)
                 .width('100%');
             }
           }

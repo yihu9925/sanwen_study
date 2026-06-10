@@ -22,17 +22,3 @@ export interface KnowledgeGraph {
   edges: GraphEdge[];
 }
 
-// 创建默认节点
-export function createDefaultNode(id: string, label: string): GraphNode {
-  return {
-    id: id,
-    label: label,
-    x: 0,
-    y: 0,
-    radius: 30,
-    importance: 3,
-    children: [],
-    description: '',
-    relatedDocs: []
-  };
-}

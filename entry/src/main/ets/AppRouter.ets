@@ -10,6 +10,7 @@ interface RouteConfig {
   Q1_KNOWLEDGE_GRAPH: string;
   Q2_CONTROVERSY: string;
   Q3_ASSESSMENT: string;
+  APPEARANCE: string;
 }
 
 export const ROUTES: RouteConfig = {
@@ -21,6 +22,7 @@ export const ROUTES: RouteConfig = {
   Q1_KNOWLEDGE_GRAPH: 'pages/Q1_KnowledgeGraphPage',
   Q2_CONTROVERSY: 'pages/Q2_ControversyPage',
   Q3_ASSESSMENT: 'pages/Q3_AssessmentPage',
+  APPEARANCE: 'pages/AppearancePage',
 };
 
 // 导航工具类
@@ -66,6 +68,10 @@ export class AppRouter {
 
   static toSettings(): void {
     router.pushUrl({ url: ROUTES.SETTINGS });
+  }
+
+  static toAppearance(): void {
+    router.pushUrl({ url: ROUTES.APPEARANCE });
   }
 
   static back(): void {

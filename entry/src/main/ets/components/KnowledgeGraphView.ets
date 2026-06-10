@@ -1,16 +1,24 @@
 // 知识图谱可视化组件 - 支持拖动和缩放
 import { KnowledgeGraph, GraphNode, GraphEdge } from '../models/KnowledgeGraph';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Component
 export struct KnowledgeGraphView {
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
+
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
   @Prop graph: KnowledgeGraph = { nodes: [], edges: [] };
-  @Prop forceRedraw: number = 0;  // 用于检测图谱数据变化
+  @Prop @Watch('onForceRedrawChange') forceRedraw: number = 0;
+  @Prop @Watch('onFocusNodeIdChange') focusNodeId: string = '';
   @State selectedNode: GraphNode | null = null;
   @State zoomScale: number = 1.0;
   @State offsetX: number = 0;
   @State offsetY: number = 0;
   @State canvasWidth: number = 360;
-  private canvasHeight: number = 360;
+  private canvasHeight: number = 400;
   private minCanvasSize: number = 280;
   private lastTouchX: number = 0;
   private lastTouchY: number = 0;
@@ -20,9 +28,7 @@ export struct KnowledgeGraphView {
   private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
 
   aboutToAppear(): void {
-    this.offsetX = this.canvasWidth / 2;
-    this.offsetY = this.canvasHeight / 2;
-    // Canvas尺寸自适应后确保中心点正确
+    this.centerOnNodes();
   }
 
   build() {
@@ -33,7 +39,7 @@ export struct KnowledgeGraphView {
           .fontWeight(FontWeight.Bold);
         Text('节点: ' + this.graph.nodes.length)
           .fontSize(12)
-          .fontColor('#999999')
+          .fontColor(this.colors().textTertiary)
           .margin({ left: 8 });
         Text('  |  拖动移动 · 拠缩放大')
           .fontSize(10)
@@ -57,7 +63,7 @@ export struct KnowledgeGraphView {
           .key('kg_' + this.forceRedraw)
           .width('100%')
           .height(this.canvasHeight)
-          .backgroundColor('#FAFAFA')
+          .backgroundColor(this.colors().pageBg)
           .borderRadius(8)
           .onReady(() => {
             this.drawGraph();
@@ -91,12 +97,12 @@ export struct KnowledgeGraphView {
             .textAlign(TextAlign.Center);
 
           Button() {
-            Text('-').fontSize(22).fontWeight(FontWeight.Bold).fontColor('#333333');
+            Text('-').fontSize(22).fontWeight(FontWeight.Bold).fontColor(this.colors().textPrimary);
           }
             .width(40)
             .height(40)
             .borderRadius(20)
-            .backgroundColor('#E0E0E0')
+            .backgroundColor(this.colors().divider)
             .onClick(() => {
               let newScale = this.zoomScale * 0.7;
               if (newScale < 0.3) { newScale = 0.3; }
@@ -115,8 +121,52 @@ export struct KnowledgeGraphView {
       this.LegendCard();
     }
     .width('100%')
-    .backgroundColor(Color.White)
+    .backgroundColor(this.colors().cardBg)
     .borderRadius(12);
+  }
+
+  private onForceRedrawChange(): void {
+    this.centerOnNodes();
+    this.drawGraph();
+  }
+
+  private centerOnNodes(): void {
+    if (this.graph.nodes.length === 0) {
+      this.offsetX = this.canvasWidth / 2;
+      this.offsetY = this.canvasHeight / 2;
+      return;
+    }
+
+    let minX = this.graph.nodes[0].x;
+    let maxX = this.graph.nodes[0].x;
+    let minY = this.graph.nodes[0].y;
+    let maxY = this.graph.nodes[0].y;
+
+    for (let i = 1; i < this.graph.nodes.length; i++) {
+      const node = this.graph.nodes[i];
+      if (node.x < minX) { minX = node.x; }
+      if (node.x > maxX) { maxX = node.x; }
+      if (node.y < minY) { minY = node.y; }
+      if (node.y > maxY) { maxY = node.y; }
+    }
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    this.offsetX = this.canvasWidth / 2 - centerX * this.zoomScale;
+    this.offsetY = this.canvasHeight / 2 - centerY * this.zoomScale;
+  }
+
+  private onFocusNodeIdChange(): void {
+    if (!this.focusNodeId || this.graph.nodes.length === 0) return;
+
+    const node = this.graph.nodes.find(n => n.id === this.focusNodeId);
+    if (!node) return;
+
+    this.offsetX = (this.canvasWidth / 2) - node.x * this.zoomScale;
+    this.offsetY = (this.canvasHeight / 2) - node.y * this.zoomScale;
+    this.selectedNode = node;
+    this.drawGraph();
   }
 
   private handleTouch(event: TouchEvent): void {
@@ -190,16 +240,16 @@ export struct KnowledgeGraphView {
 
       Text(this.selectedNode?.description || '暂无描述')
         .fontSize(12)
-        .fontColor('#666666')
+        .fontColor(this.colors().textSecondary)
         .margin({ top: 8 });
 
       Row() {
         Text('重要度: ' + (this.selectedNode?.importance || 0))
           .fontSize(12)
-          .fontColor('#999999');
+          .fontColor(this.colors().textTertiary);
         Text('子节点: ' + (this.selectedNode?.children?.length || 0))
           .fontSize(12)
-          .fontColor('#999999')
+          .fontColor(this.colors().textTertiary)
           .margin({ left: 16 });
       }
       .margin({ top: 8 });
@@ -207,7 +257,7 @@ export struct KnowledgeGraphView {
     .width('100%')
     .alignItems(HorizontalAlign.Start)
     .padding(12)
-    .backgroundColor('#F5F5F5')
+    .backgroundColor(this.colors().cardBg)
     .borderRadius(8)
     .margin({ top: 8 });
   }
@@ -237,13 +287,15 @@ export struct KnowledgeGraphView {
       return;
     }
 
+    const c = this.colors();
+
     this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
     this.context.save();
     this.context.translate(this.offsetX, this.offsetY);
     this.context.scale(this.zoomScale, this.zoomScale);
 
     // Draw edges
-    this.context.strokeStyle = '#E5E5E5';
+    this.context.strokeStyle = c.divider;
     this.context.lineWidth = 2;
     for (const edge of this.graph.edges) {
       const fromNode = this.graph.nodes.find(n => n.id === edge.from);
@@ -257,8 +309,8 @@ export struct KnowledgeGraphView {
         if (edge.label) {
           const midX = (fromNode.x + toNode.x) / 2;
           const midY = (fromNode.y + toNode.y) / 2;
-          this.context.fillStyle = '#666666';
-          this.context.font = '13px sans-serif';
+          this.context.fillStyle = c.textSecondary;
+          this.context.font = '16px sans-serif';
           this.context.fillText(edge.label, midX, midY);
         }
       }
@@ -278,10 +330,10 @@ export struct KnowledgeGraphView {
       this.context.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
       this.context.fill();
 
-      this.context.fillStyle = '#333333';
-      this.context.font = 'bold 15px sans-serif';
+      this.context.fillStyle = c.textPrimary;
+      this.context.font = 'bold 20px sans-serif';
       this.context.textAlign = 'center';
-      this.context.fillText(node.label, node.x, node.y + node.radius + 20);
+      this.context.fillText(node.label, node.x, node.y + node.radius + 24);
     }
 
     this.context.restore();

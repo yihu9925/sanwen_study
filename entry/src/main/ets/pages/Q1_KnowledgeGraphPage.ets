@@ -1,8 +1,9 @@
 // 第一问：知识图谱展示（独立页面）
 import { router } from '@kit.ArkUI';
-import { KnowledgeGraph, GraphNode } from '../models/KnowledgeGraph';
+import { KnowledgeGraph } from '../models/KnowledgeGraph';
 import { KnowledgeBaseService } from '../services/KnowledgeBaseService';
 import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Entry
 @Component
@@ -10,6 +11,8 @@ struct Q1_KnowledgeGraphPage {
   @State courseId: string = '';
   @State knowledgeGraph: KnowledgeGraph = { nodes: [], edges: [] };
   @State isLoading: boolean = false;
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -30,6 +33,8 @@ struct Q1_KnowledgeGraphPage {
     }
   }
 
+  colors(): StyleColors { return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark'); }
+
   build() {
     Column() {
       Row() {
@@ -38,12 +43,12 @@ struct Q1_KnowledgeGraphPage {
           .fontSize(18).fontWeight(FontWeight.Bold).layoutWeight(1).textAlign(TextAlign.Center);
         Button('\u5237\u65b0').onClick(() => { this.loadGraph(); });
       }
-      .width('100%').padding(16).backgroundColor(Color.White);
+      .width('100%').padding(16).backgroundColor(this.colors().cardBg);
 
       if (this.isLoading) {
         Column() {
           LoadingProgress().width(48).height(48);
-          Text('\u52a0\u8f7d\u4e2d...').fontSize(14).fontColor('#999999').margin({ top: 12 });
+          Text('\u52a0\u8f7d\u4e2d...').fontSize(14).fontColor(this.colors().textTertiary).margin({ top: 12 });
         }
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center);
       } else {
@@ -51,6 +56,6 @@ struct Q1_KnowledgeGraphPage {
           .width('100%').layoutWeight(1);
       }
     }
-    .width('100%').height('100%').backgroundColor('#F5F5F5');
+    .width('100%').height('100%').backgroundColor(this.colors().pageBg);
   }
 }

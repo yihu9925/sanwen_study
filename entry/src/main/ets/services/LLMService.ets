@@ -2,7 +2,7 @@
 import { http } from '@kit.NetworkKit';
 import { GraphNode, GraphEdge, KnowledgeGraph } from '../models/KnowledgeGraph';
 import { Controversy, Evidence } from '../models/Controversy';
-import { Question, BloomLevel, AiEvaluation } from '../models/Question';
+import { Question, BloomLevel, AiEvaluation, getBloomLevelName } from '../models/Question';
 import { ConfigService } from './ConfigService';
 import { generateUUID } from '../utils/UUID';
 
@@ -86,6 +86,23 @@ export class LLMService {
     }
   }
 
+  // 增强JSON提取：处理markdown包裹、前后杂文本、截断修复
+  private static extractJSON(text: string): string {
+    let cleaned: string = text.trim();
+    // 移除 ```json ... ``` 包裹
+    const jsonBlockMatch: RegExpMatchArray | null = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonBlockMatch) {
+      cleaned = jsonBlockMatch[1].trim();
+    }
+    // 找到第一个 { 和最后一个 } 截取
+    const firstBrace: number = cleaned.indexOf('{');
+    const lastBrace: number = cleaned.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+    return cleaned;
+  }
+
   static async identifyDomain(question: string): Promise<string> {
     try {
       const result = await LLMService.callLLM(
@@ -116,44 +133,46 @@ export class LLMService {
         truncatedContent = truncatedContent.substring(0, 3000);
       }
       const prompt =
-        '\u4f60\u662f\u77e5\u8bc6\u56fe\u8c31\u6784\u5efa\u4e13\u5bb6\u3002\u8bf7\u6839\u636e\u4ee5\u4e0b\u5b66\u4e60\u8d44\u6599\uff0c\u63d0\u53d6\u6838\u5fc3\u6982\u5ff5\u53ca\u5176\u5173\u7cfb\uff0c\u6784\u5efa\u77e5\u8bc6\u56fe\u8c31\u3002\n\n' +
-        '\u8bf7\u4e3a\u6bcf\u4e2a\u6982\u5ff5\u8282\u70b9\u63d0\u4f9b\u8be6\u7ec6\u8bf4\u660e\uff08description\uff09\uff0c\u5185\u5bb9\u8981\u5177\u4f53\u3001\u6709\u5b66\u672f\u4ef7\u503c\u3002\n\n' +
-        '\u8fd4\u56de\u683c\u5f0f\u4e3aJSON\uff0c\u7ed3\u6784\u5982\u4e0b\uff1a\n' +
+        '\u4f60\u662f\u77e5\u8bc6\u56fe\u8c31\u6784\u5efa\u4e13\u5bb6\u3002\u6839\u636e\u4ee5\u4e0b\u5b66\u4e60\u8d44\u6599\uff0c\u6784\u5efa\u8be6\u7ec6\u7684\u77e5\u8bc6\u56fe\u8c31\u3002' +
+        '\u6bcf\u4e2a\u8282\u70b9\u662f\u4e00\u4e2a\u5b66\u4e60\u7ae0\u8282\uff0c\u5176description\u662f\u5bf9\u8be5\u7ae0\u8282\u7684\u8be6\u7ec6\u5b66\u4e60\u5185\u5bb9\uff08\u9002\u5408\u65b0\u624b\u5b66\u4e60\uff0c\u5305\u542b\u5b9a\u4e49\u3001\u539f\u7406\u3001\u793a\u4f8b\uff09\u3002' +
+        '\u5982\u679c\u662f\u7f16\u7a0b\u8bed\u8a00\u5b66\u4e60\uff0c\u8bf7\u5305\u542b\u8bed\u6cd5\u3001\u5173\u952e\u8bcd\u3001\u4ee3\u7801\u793a\u4f8b\u7b49\u3002' +
+        '\u9664\u4ee3\u7801\u548c\u4e13\u6709\u540d\u8bcd\u5916\uff0c\u6240\u6709\u5185\u5bb9\u5747\u4f7f\u7528\u4e2d\u6587\u3002' +
+        '\u8282\u70b9\u6570\u91cf\u4e0d\u505a\u9650\u5236\uff0c\u8d8a\u5168\u9762\u8d8a\u597d\uff0c\u4f46\u6bcf\u4e2a\u8282\u70b9\u7684description\u5fc5\u987b\u6709\u5b9e\u9645\u5b66\u4e60\u4ef7\u503c\u3002\n\n' +
+        '\u8fd4\u56de\u7c97\u7cd7JSON\uff08\u4e0d\u8981\u4efb\u4f55markdown\u6807\u8bb0\uff09\uff0c\u7ed3\u6784\u5982\u4e0b\uff1a\n' +
         '{\n' +
         '  "nodes": [\n' +
-        '    {\n' +
-        '      "label": "\u6982\u5ff5\u540d\u79f0",\n' +
-        '      "importance": 1-5,\n' +
-        '      "description": "\u8be5\u6982\u5ff5\u7684\u8be6\u7ec6\u89e3\u91ca\uff0c\u5305\u542b\u5b9a\u4e49\u3001\u6838\u5fc3\u8981\u70b9\u3001\u4e0a\u4e0b\u6587\u5173\u7cfb\u7b49\uff0c\u4e0d\u5f97\u5c11\u4e8e80\u5b57",\n' +
-        '      "children": [\n' +
-        '        {"label": "\u5b50\u6982\u5ff5\u540d\u79f0", "description": "\u5b50\u6982\u5ff5\u8bf4\u660e"}\n' +
-        '      ]\n' +
-        '    }\n' +
+        '    { "label": "\u7ae0\u8282\u540d\u79f0", "importance": 1-5, "description": "\u8be5\u7ae0\u8282\u7684\u8be6\u7ec6\u5b66\u4e60\u5185\u5bb9...", ' +
+        '"children": [ {"label": "\u5b50\u8282\u70b9", "description": "\u8bf4\u660e"} ] }\n' +
         '  ],\n' +
         '  "edges": [\n' +
-        '    {\n' +
-        '      "from": 0,\n' +
-        '      "to": 1,\n' +
-        '      "label": "\u5173\u7cfb\u7c7b\u578b\uff08\u5982\uff1a\u5305\u542b\u3001\u4f9d\u8d56\u3001\u5e76\u5217\u3001\u5bf9\u7acb\u7b49\uff09"\n' +
-        '    }\n' +
+        '    { "from": 0, "to": 1, "label": "\u5173\u7cfb\u7c7b\u578b" }\n' +
         '  ]\n' +
         '}\n\n' +
-        '\u8981\u6c42\uff1a\n' +
-        '1. \u6bcf\u4e2a\u8282\u70b9\u5fc5\u987b\u5305\u542b\u8be6\u7ec6\u7684description\n' +
-        '2. \u5982\u679c\u6982\u5ff5\u6709\u5b50\u6982\u5ff5\uff0c\u8bf7\u586b\u5145children\u6570\u7ec4\n' +
-        '3. \u901a\u8fc7edges\u8868\u8fbe\u6982\u5ff5\u95f4\u7684\u5404\u79cd\u5173\u7cfb\n' +
-        '4. \u4f7f\u7528\u4e2d\u6587\n' +
-        '5. edges\u4e2d\u7684from\u548cto\u5bf9\u5e94nodes\u6570\u7ec4\u4e2d\u7684\u7d22\u5f15\n\n' +
+        '\u4e25\u683c\u8981\u6c42\uff1a\u5fc5\u987b\u5305\u542bnodes\u548cedges\u5b57\u6bb5\uff0c\u8282\u70b9\u81f3\u5c113\u4e2a\u3002' +
         '\u8d44\u6599\uff1a' + truncatedContent;
 
       const result = await LLMService.callLLM(
-        '\u4f60\u662f\u77e5\u8bc6\u56fe\u8c31\u4e13\u5bb6\uff0c\u53ea\u8fd4\u56de\u6709\u6548\u7684JSON\u3002',
+        '\u4f60\u662f\u77e5\u8bc6\u56fe\u8c31\u4e13\u5bb6\u3002\u53ea\u8fd4\u56de\u7eaf\u7cb9JSON\u5bf9\u8c61\uff08\u4e0d\u5e26\u4efb\u4f55markdown\u6807\u8bb0\u6216\u989d\u5916\u8bf4\u660e\uff09\u3002',
         prompt,
         'json'
       );
-      const parsed = JSON.parse(result) as Record<string, Object>;
-      const rawNodes = (parsed['nodes'] || []) as Array<Record<string, Object>>;
-      const rawEdges = (parsed['edges'] || []) as Array<Record<string, Object>>;
+      const cleanedResult: string = LLMService.extractJSON(result);
+      const parsed = JSON.parse(cleanedResult) as Record<string, Object>;
+      // 兼容 LLM 将数组包在额外字段里的情况
+      let rawNodes: Array<Record<string, Object>> = (parsed['nodes'] || []) as Array<Record<string, Object>>;
+      if (rawNodes.length === 0) {
+        for (const key of Object.keys(parsed)) {
+          const val = parsed[key];
+          if (Array.isArray(val)) {
+            const arr = val as Array<Record<string, Object>>;
+            if (arr.length > 0 && arr[0]['label']) {
+              rawNodes = arr;
+              break;
+            }
+          }
+        }
+      }
+      let rawEdges: Array<Record<string, Object>> = (parsed['edges'] || []) as Array<Record<string, Object>>;
 
       const nodes: GraphNode[] = [];
       for (let i = 0; i < rawNodes.length; i++) {
@@ -251,22 +270,22 @@ export class LLMService {
 
   static async generateQuestions(
     content: string,
-    bloomLevel: BloomLevel,
-    count: number
+    count: number,
+    difficultyHint?: string
   ): Promise<Question[]> {
     try {
       let truncatedContent = content;
       if (truncatedContent.length > 3000) {
         truncatedContent = truncatedContent.substring(0, 3000);
       }
-      const levelNames: Record<number, string> = {
-        0: 'Remember', 1: 'Understand', 2: 'Apply',
-        3: 'Analyze', 4: 'Evaluate', 5: 'Create'
-      };
-      const levelChinese: string = levelNames[bloomLevel] || '';
-      const prompt = '\u8bf7\u6839\u636e\u4ee5\u4e0b\u8d44\u6599\u751f\u6210' + count + '\u9053\u5e03\u9c81\u59c6\u8ba4\u77e5\u5c42\u7ea7\u4e3a\u201c' + levelChinese + '\u201d\u7684\u4e2d\u6587\u5f00\u653e\u5f0f\u9898\u76ee\uff0c\u8981\u6c42\u5b66\u751f\u81ea\u7531\u8f93\u5165\u56de\u7b54\u800c\u975e\u9009\u62e9\u3002\n' +
-        '\u4ee5JSON\u6570\u7ec4\u683c\u5f0f\u8fd4\u56de\uff1a[{\"questionText\":\"\u4e2d\u6587\u9898\u76ee\u5185\u5bb9\",\"correctAnswer\":\"\u53c2\u8003\u7b54\u6848\",\"explanation\":\"\u77e5\u8bc6\u70b9\u63d0\u793a\",\"difficulty\":1-5}]\n' +
-        '\u6ce8\u610f\uff1a\u9898\u76ee\u5fc5\u987b\u662f\u4e2d\u6587\uff0c\u4e0d\u8981\u52a0\u9009\u9879\uff08options\uff09\uff0c\u56e0\u4e3a\u662f\u5f00\u653e\u5f0f\u56de\u7b54\u3002\n' +
+      const prompt = '\u8bf7\u6839\u636e\u4ee5\u4e0b\u8d44\u6599\u751f\u62108\u9053\u4e2d\u6587\u9898\u76ee\u3002' +
+        '\u5176\u4e2d5\u9053\u4e3a\u9009\u62e9\u9898\uff084\u4e2a\u9009\u9879\uff09\uff0c3\u9053\u4e3a\u5f00\u653e\u5f0f\u95ee\u7b54\u9898\u3002\n' +
+        '\u6bcf\u9053\u9898\u7684\u5e03\u9c81\u59c6\u8ba4\u77e5\u5c42\u7ea7\u5fc5\u987b\u8986\u76d6\u8bb0\u5fc6\u3001\u7406\u89e3\u3001\u5e94\u7528\u3001\u5206\u6790\u3001\u8bc4\u4ef7\u3001\u521b\u9020\u4e2d\u7684\u4e0d\u540c\u5c42\u7ea7\uff0c\u4e0d\u80fd\u5168\u90e8\u662f\u540c\u4e00\u4e2a\u5c42\u7ea7\u3002\n' +
+        '\u6bcf\u9053\u9898\u53ef\u4ee5\u6709\u591a\u4e2a\u6807\u7b7e\uff08labels\uff09\uff0c\u5982["\u8bb0\u5fc6"]\u6216["\u7406\u89e3","\u5e94\u7528"]\u3002\n' +
+        '\u4ee5JSON\u6570\u7ec4\u683c\u5f0f\u8fd4\u56de\uff1a' +
+        '[{"questionText":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correctAnswer":"A","explanation":"...","difficulty":1-5,"bloomLevel":1-6,"labels":["..."],"questionType":"choice"}]\n' +
+        '\u5f00\u653e\u5f0f\u9898\u76ee\u7684options\u4e3a\u7a7a\u6570\u7ec4\uff0cquestionType\u4e3a"open"\u3002\n' +
+        (difficultyHint ? '\u96be\u5ea6\u8981\u6c42\uff1a' + difficultyHint + '\n' : '') +
         '\u8d44\u6599\uff1a' + truncatedContent;
 
       const result = await LLMService.callLLM(
@@ -278,24 +297,35 @@ export class LLMService {
       const questions: Question[] = [];
       for (let m = 0; m < rawQuestions.length; m++) {
         const q = rawQuestions[m];
+        let perLevel: BloomLevel = 1;
+        const rawLevel: number = q['bloomLevel'] as number;
+        if (rawLevel >= 1 && rawLevel <= 6) {
+          perLevel = rawLevel as BloomLevel;
+        } else {
+          perLevel = ((m % 6) + 1) as BloomLevel;
+        }
+        const rawLabels: string[] = q['labels'] as string[];
+        const labels: string[] = rawLabels && rawLabels.length > 0 ? rawLabels : [getBloomLevelName(perLevel)];
+        const rawType: string = q['questionType'] as string || 'open';
         questions.push({
           id: generateUUID(),
           courseId: '',
-          bloomLevel: bloomLevel,
+          bloomLevel: perLevel,
+          labels: labels,
           questionText: (q['questionText'] as string) || 'Question ' + (m + 1),
-          options: (q['options'] as string[]) || ['A', 'B', 'C', 'D'],
-          correctAnswer: (q['correctAnswer'] as string) || 'A',
+          options: (q['options'] as string[]) || [],
+          correctAnswer: (q['correctAnswer'] as string) || '',
           explanation: (q['explanation'] as string) || '',
           difficulty: q['difficulty'] as number || 3,
-          questionType: 'open'
+          questionType: rawType === 'choice' ? 'choice' : 'open'
         });
       }
       return questions;
     } catch (e) {
       if ((e as Error).message === 'NO_API_KEY') {
-        return LLMService.mockQuestions(bloomLevel, count);
+        return LLMService.mockQuestions(count);
       }
-      return LLMService.mockQuestions(bloomLevel, count);
+      return LLMService.mockQuestions(count);
     }
   }
 
@@ -526,16 +556,22 @@ export class LLMService {
         questions = [];
         for (let m = 0; m < rawQuestions.length; m++) {
           const q = rawQuestions[m];
+          const rawLevel: number = q['bloomLevel'] as number || 1;
+          const qLevel: BloomLevel = (rawLevel >= 1 && rawLevel <= 6) ? rawLevel as BloomLevel : 1;
+          const rawLabels: string[] = q['labels'] as string[];
+          const qLabels: string[] = rawLabels && rawLabels.length > 0 ? rawLabels : [getBloomLevelName(qLevel)];
+          const rawType: string = q['questionType'] as string || 'open';
           questions.push({
             id: generateUUID(),
             courseId: '',
-            bloomLevel: q['bloomLevel'] as BloomLevel || 1,
+            bloomLevel: qLevel,
+            labels: qLabels,
             questionText: (q['questionText'] as string) || 'Question ' + (m + 1),
             options: [],
             correctAnswer: (q['correctAnswer'] as string) || '',
             explanation: (q['explanation'] as string) || '',
             difficulty: q['difficulty'] as number || 3,
-            questionType: 'open'
+            questionType: rawType === 'choice' ? 'choice' : 'open'
           });
         }
       } catch (e) {
@@ -548,9 +584,7 @@ export class LLMService {
         const mock: AllContentResult = {
           graph: LLMService.mockKnowledgeGraph(),
           controversies: LLMService.mockControversies(),
-          questions: LLMService.mockQuestions(1, 3).concat(
-            LLMService.mockQuestions(3, 2)
-          )
+          questions: LLMService.mockQuestions(5)
         };
         return mock;
       }
@@ -564,18 +598,17 @@ export class LLMService {
       const truncatedQuestion: string = question.length > 500 ? question.substring(0, 500) : question;
       const prompt: string =
         '\u6839\u636E\u4EE5\u4E0B\u5B66\u4E60\u95EE\u9898\uFF0C\u751F\u6210\u82E5\u5E72\u7BC7\u5B66\u4E60\u8D44\u6599\u3002' +
-        '\u8D44\u6599\u7684\u7BC7\u6570\u6839\u636E\u95EE\u9898\u7684\u590D\u6742\u5EA6\u548C\u5E7F\u5EA6\u51B3\u5B9A\uFF0C\u4E0D\u5F97\u5C11\u4E8E2\u7BC7\uFF0C\u4E0D\u5F97\u591A\u4E8E6\u7BC7\u3002\n\n' +
+        '\u8D44\u6599\u7BC7\u6570\u7531\u95EE\u9898\u590D\u6742\u5EA6\u51B3\u5B9A\uFF0C\u4E0D\u505A\u9650\u5236\uFF0C\u4EE5\u8986\u76D6\u5168\u90E8\u6838\u5FC3\u5185\u5BB9\u4E3A\u51C6\u3002\n\n' +
         '\u6BCF\u7BC7\u8D44\u6599\u5305\u542B\u4EE5\u4E0B\u5B57\u6BB5\uFF1A\n' +
-        '- title: \u6807\u9898\uFF08\u7CBE\u7B80\uFF0C\u76F4\u63A5\u53CD\u6620\u5185\u5BB9\uFF09\n' +
-        '- content: \u8BE6\u7EC6\u5185\u5BB9\uFF08\u81F3\u5C11300\u5B57\uFF0C\u6709\u5B66\u672F\u4EF7\u503C\uFF0C\u5305\u542B\u5B9A\u4E49\u3001\u539F\u7406\u3001\u6848\u4F8B\u6216\u5E94\u7528\uFF0C\u7528\u7A7A\u884C\u5206\u9694\u6BB5\u843D\uFF09\n' +
+        '- title: \u6807\u9898\uFF08\u7CBE\u7B80\u76F4\u63A5\uFF0C\u53CD\u6620\u5185\u5BB9\uFF09\n' +
+        '- content: \u8BE6\u7EC6\u5185\u5BB9\uFF08\u81F3\u5C11300\u5B57\uFF0C\u9002\u5408\u65B0\u624B\u5B66\u4E60\uFF0C\u5305\u542B\u5B9A\u4E49\u3001\u539F\u7406\u3001\u793A\u4F8B\uff0C\u7528\\n\u6362\u884C\u5206\u6BB5\u843D\uFF09\n' +
         '- keywords: \u5173\u952E\u8BCD\u6570\u7EC4\uFF081-3\u4E2A\uFF09\n\n' +
         '\u8981\u6C42\uFF1A\n' +
-        '1. \u8D44\u6599\u8981\u4ECE\u4E0D\u540C\u89D2\u5EA6\u8986\u76D6\u95EE\u9898\uFF08\u57FA\u7840\u6982\u5FF5\u3001\u5E94\u7528\u573A\u666F\u3001\u524D\u6CBF\u7814\u7A76\u7B49\uFF09\n' +
-        '2. \u5185\u5BB9\u5FC5\u987B\u80FD\u652F\u6491\u540E\u7EED\u7684\u77E5\u8BC6\u56FE\u8C31\u6784\u5EFA\u3001\u5B66\u672F\u4E89\u8BAE\u70B9\u5206\u6790\u548C\u6D4B\u8BC4\u9898\u751F\u6210\n' +
+        '1. \u5982\u679C\u662F\u7F16\u7A0B\u8BED\u8A00\uFF0Ccontent\u5185\u5FC5\u987B\u5305\u542B\u4EE3\u7801\u793A\u4F8B\uFF08\u7528[CODE]...[/CODE]\u5305\u88F9\uFF09\n' +
+        '2. \u5185\u5BB9\u8981\u9002\u5408\u65B0\u624B\uFF0C\u4ECE\u7B80\u5355\u5230\u590D\u6742\u5C42\u5C42\u9012\u8FDB\n' +
         '3. \u4F7F\u7528\u4E2D\u6587\n' +
-        '4. content\u4E2D\u7528\\n\u6362\u884C\u7B26\u5206\u9694\u6BB5\u843D\uFF08\u6BCF\u6BB5\u843D\u4E4B\u95F4\u4E00\u4E2A\\n\u5373\u53EF\uFF09\n' +
-        '5. \u4EE3\u7801\u5FC5\u987B\u7528[CODE]\u548C[/CODE]\u6807\u8BB0\u5305\u88F9\uFF0C\u4FDD\u6301\u7F29\u8FDB\u548C\u6392\u7248\n' +
-        '6. \u8FD4\u56DE JSON \u6570\u7EC4\u683C\u5F0F\uFF1A[{"title": "...", "content": "...", "keywords": ["...", "..."]}]\n\n' +
+        '4. \u4EE3\u7801\u5FC5\u987B\u7528[CODE]\u548C[/CODE]\u6807\u8BB0\u5305\u88F9\uFF0C\u4FDD\u6301\u7F29\u8FDB\n' +
+        '5. \u53EA\u8FD4\u56DE\u7EAF\u7CB9 JSON \u6570\u7EC4\uFF0C\u4E0D\u8981\u4EFB\u4F55markdown\u6807\u8BB0\u6216\u8BF4\u660E\u6587\u5B57\uFF1A[{\"title\": \"...\", \"content\": \"...\", \"keywords\": [\"...\"]}]\n\n' +
         '\u95EE\u9898\uFF1A' + truncatedQuestion;
 
       const result: string = await LLMService.callLLM(
@@ -693,17 +726,21 @@ export class LLMService {
     }];
   }
 
-  private static mockQuestions(bloomLevel: BloomLevel, count: number): Question[] {
+  private static mockQuestions(count: number): Question[] {
+    const levelNames: string[] = ['\u8bb0\u5fc6', '\u7406\u89e3', '\u5e94\u7528', '\u5206\u6790', '\u8bc4\u4ef7', '\u521b\u9020'];
     const questions: Question[] = [];
     for (let i = 0; i < count; i++) {
+      const level: BloomLevel = ((i % 6) + 1) as BloomLevel;
+      const isChoice: boolean = i < 5;
       questions.push({
-        id: generateUUID(), courseId: '', bloomLevel: bloomLevel,
+        id: generateUUID(), courseId: '', bloomLevel: level,
+        labels: [levelNames[level - 1]],
         questionText: 'Test question ' + (i + 1) + ': What is the main concept?',
-        options: ['A: Correct answer', 'B: Option', 'C: Option', 'D: Option'],
+        options: isChoice ? ['A. Correct answer', 'B. Option B', 'C. Option C', 'D. Option D'] : [],
         correctAnswer: 'A',
         explanation: 'This is the correct answer because...',
         difficulty: 3,
-        questionType: 'open'
+        questionType: isChoice ? 'choice' : 'open'
       });
     }
     return questions;

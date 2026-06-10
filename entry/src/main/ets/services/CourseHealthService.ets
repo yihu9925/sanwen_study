@@ -40,6 +40,16 @@ export class CourseHealthService {
           const nodes: Object = parsed['nodes'] || [];
           const nodesArr: Object[] = nodes as Object[];
           q1Done = nodesArr.length > 0;
+          // 如果节点全是mock数据（"核心概念"是mock的特征），视为未完成
+          if (q1Done) {
+            for (let ni = 0; ni < nodesArr.length; ni++) {
+              const nd = nodesArr[ni] as Record<string, string>;
+              if (nd['label'] && nd['label'].indexOf('\u6838\u5fc3\u6982\u5ff5') >= 0) {
+                q1Done = false;
+                break;
+              }
+            }
+          }
         } catch (e) {
           q1Done = false;
         }
@@ -161,7 +171,7 @@ export class CourseHealthService {
   static async fillQ3Questions(courseId: string, content: string): Promise<boolean> {
     try {
       const material: string = await CourseHealthService.getMaterialContent(courseId, content);
-      await AssessmentService.generateQuestions(courseId, material, 1, 5);
+      await AssessmentService.generateQuestions(courseId, material, 5);
       await CourseService.updateProgress(courseId, 3);
       return true;
     } catch (e) {

@@ -3,9 +3,6 @@ import { relationalStore } from '@kit.ArkData';
 import { Course, RadarData, getDefaultRadarData, CourseStatus } from '../models/Course';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { KnowledgeBaseService } from './KnowledgeBaseService';
-import { AssessmentService } from './AssessmentService';
-import { LLMService } from './LLMService';
-import { EventBus, EVENTS } from '../utils/EventBus';
 import { generateUUID } from '../utils/UUID';
 
 export class CourseService {
@@ -37,10 +34,26 @@ export class CourseService {
     // 自动创建知识库记录
     await KnowledgeBaseService.createKnowledgeBase(courseId);
 
-    // 后台异步生成内容（不阻塞用户跳转）
-    CourseService.generateCourseContent(courseId, question);
+    // 刷新统计数据到AppStorage
+    await CourseService.refreshStatsInStorage(userId);
 
     return courseId;
+  }
+
+  // 将课程统计数据写入AppStorage（供PersonalCenter @StorageLink读取）
+  static async refreshStatsInStorage(userId: string): Promise<void> {
+    try {
+      const courses: Course[] = await CourseService.getCoursesByUser(userId);
+      const nonArchived: Course[] = courses.filter(c => c.status !== 'archived');
+      const total: number = nonArchived.length;
+      const completed: number = nonArchived.filter(c => c.progressPercent === 100).length;
+      const archived: number = courses.filter(c => c.status === 'archived').length;
+      AppStorage.set<number>('statTotal', total);
+      AppStorage.set<number>('statCompleted', completed);
+      AppStorage.set<number>('statArchived', archived);
+    } catch (e) {
+      console.error('refreshStatsInStorage failed: ' + (e as Error).message);
+    }
   }
 
   // 获取用户的所有课程
@@ -123,103 +136,26 @@ export class CourseService {
     predicates.equalTo('id', courseId);
 
     await store.update(valueBucket, predicates);
+
+    // 更新统计
+    const c = await CourseService.getCourseById(courseId);
+    if (c) {
+      await CourseService.refreshStatsInStorage(c.userId);
+    }
   }
 
   // 删除课程
   static async deleteCourse(courseId: string): Promise<void> {
     const store = RelationalStoreManager.getStore();
+    const c = await CourseService.getCourseById(courseId);
     const predicates = new relationalStore.RdbPredicates('course');
     predicates.equalTo('id', courseId);
 
     await store.delete(predicates);
-  }
 
-  // 后台异步生成课程内容（知识图谱+争议点+测评题）
-  static async generateCourseContent(courseId: string, question: string): Promise<void> {
-    try {
-      // 1. 生成知识图谱
-      const graph = await LLMService.generateKnowledgeGraph(question);
-      await KnowledgeBaseService.updateKnowledgeGraph(courseId, graph);
-      const graphEvent: Record<string, string> = {};
-      graphEvent['courseId'] = courseId;
-      EventBus.emit(EVENTS.GRAPH_READY, graphEvent);
-
-      // 添加AI资料到知识库
-      const store2 = RelationalStoreManager.getStore();
-      const now2 = new Date().toISOString();
-      const docId2 = generateUUID();
-      const docBucket: relationalStore.ValuesBucket = {
-        id: docId2,
-        course_id: courseId,
-        source_type: 'ai',
-        title: 'AI\u81EA\u52A8\u751F\u6210\u7684\u77E5\u8BC6\u56FE\u8C31\u8D44\u6599',
-        content: '\u57FA\u4E8E\u63D0\u95EE\"' + question + '\"\u81EA\u52A8\u751F\u6210\u7684\u5B66\u79D1\u77E5\u8BC6\u56FE\u8C31\uFF0C\u5305\u542B' + graph.nodes.length + '\u4E2A\u6838\u5FC3\u6982\u5FF5\u548C' + graph.edges.length + '\u6761\u903B\u8F91\u5173\u7CFB\u3002',
-        file_path: '',
-        file_type: 'txt',
-        keywords: '["\u77E5\u8BC6\u56FE\u8C31","AI\u8865\u5145","' + question.substring(0, 20) + '"]',
-        uploaded_at: now2
-      };
-      await store2.insert('document', docBucket);
-
-      // 2. 挖掘争议点
-      const controversies = await LLMService.discoverControversies(question);
-      await KnowledgeBaseService.updateControversies(courseId, controversies);
-      const contraEvent: Record<string, string> = {};
-      contraEvent['courseId'] = courseId;
-      EventBus.emit(EVENTS.CONTROVERSY_READY, contraEvent);
-
-      // 添加争议点资料
-      const store3 = RelationalStoreManager.getStore();
-      const now3 = new Date().toISOString();
-      const docId3 = generateUUID();
-      const contraDocBucket: relationalStore.ValuesBucket = {
-        id: docId3,
-        course_id: courseId,
-        source_type: 'ai',
-        title: 'AI\u81EA\u52A8\u6316\u6398\u7684\u5B66\u672F\u4E89\u8BAE\u70B9',
-        content: '\u57FA\u4E8E\u63D0\u95EE\"' + question + '\"\u81EA\u52A8\u6316\u6398\u7684' + controversies.length + '\u4E2A\u4E89\u8BAE\u70B9\uFF0C\u5305\u542B\u6B63\u53CD\u65B9\u89C2\u70B9\u53CA\u8BC1\u636E\u3002',
-        file_path: '',
-        file_type: 'txt',
-        keywords: '["\u5B66\u672F\u4E89\u8BAE","\u6B63\u53CD\u65B9\u89C2\u70B9","AI\u5206\u6790"]',
-        uploaded_at: now3
-      };
-      await store3.insert('document', contraDocBucket);
-
-      // 3. 生成测评题
-      await AssessmentService.generateQuestions(courseId, question, 1, 5);
-      const qEvent: Record<string, string> = {};
-      qEvent['courseId'] = courseId;
-      EventBus.emit(EVENTS.QUESTIONS_READY, qEvent);
-
-      // 添加测评题资料
-      const store4 = RelationalStoreManager.getStore();
-      const now4 = new Date().toISOString();
-      const totalQ = 5;
-      const docId4 = generateUUID();
-      const qDocBucket: relationalStore.ValuesBucket = {
-        id: docId4,
-        course_id: courseId,
-        source_type: 'ai',
-        title: 'AI\u81EA\u52A8\u751F\u6210\u7684\u8BC4\u6D4B\u9898',
-        content: '\u57FA\u4E8E\u5E03\u9C81\u59C6\u8BA4\u77E5\u5C42\u7EA7\u81EA\u52A8\u751F\u6210\u4E86' + totalQ + '\u9053\u6D4B\u8BC4\u9898\uFF0C\u6DB5\u76D6\u8BB0\u5FC6\u3001\u7406\u89E3\u3001\u5E94\u7528\u7B49\u591A\u4E2A\u7EF4\u5EA6\u3002',
-        file_path: '',
-        file_type: 'txt',
-        keywords: '["\u8BC4\u6D4B\u9898","\u5E03\u9C81\u59C6\u5206\u7C7B\u5B66","AI\u751F\u6210"]',
-        uploaded_at: now4
-      };
-      await store4.insert('document', qDocBucket);
-
-      // 4. 更新课程状态为active
-      const store = RelationalStoreManager.getStore();
-      const predicates = new relationalStore.RdbPredicates('course');
-      predicates.equalTo('id', courseId);
-      const updateValues: relationalStore.ValuesBucket = {
-        status: 'active',
-        updated_at: new Date().toISOString()
-      };
-      await store.update(updateValues, predicates);
-    } catch (error) {
-      console.error('Content generation failed:', JSON.stringify(error));
+    // 更新统计
+    if (c) {
+      await CourseService.refreshStatsInStorage(c.userId);
     }
   }
 
@@ -261,9 +197,9 @@ export class CourseService {
     const rs = await store.query(allPredicates);
     let p1 = 0; let p2 = 0; let p3 = 0;
     if (rs.goToNextRow()) {
-      p1 = rs.getLong(5);  // progress_q1
-      p2 = rs.getLong(6);  // progress_q2
-      p3 = rs.getLong(7);  // progress_q3
+      p1 = rs.getLong(6);  // progress_q1
+      p2 = rs.getLong(7);  // progress_q2
+      p3 = rs.getLong(8);  // progress_q3
     }
     rs.close();
 
@@ -278,5 +214,43 @@ export class CourseService {
     updateBucket['updated_at'] = new Date().toISOString();
 
     await store.update(updateBucket, predicates);
+
+    // 刷新 AppStorage 统计数据，确保 PersonalCenter 即时更新
+    const course = await CourseService.getCourseById(courseId);
+    if (course) {
+      await CourseService.refreshStatsInStorage(course.userId);
+    }
+  }
+
+  // 重置学习进度为0（重新生成时调用）
+  static async resetProgress(courseId: string): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('course');
+    predicates.equalTo('id', courseId);
+    const valueBucket: relationalStore.ValuesBucket = {
+      'progress_q1': 0,
+      'progress_q2': 0,
+      'progress_q3': 0,
+      'progress_percent': 0,
+      'status': 'active',
+      'updated_at': new Date().toISOString()
+    };
+    await store.update(valueBucket, predicates);
+    const course = await CourseService.getCourseById(courseId);
+    if (course) {
+      await CourseService.refreshStatsInStorage(course.userId);
+    }
+  }
+
+  // 重置雷达数据为初始空状态
+  static async resetRadarData(courseId: string): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('course');
+    predicates.equalTo('id', courseId);
+    const valueBucket: relationalStore.ValuesBucket = {
+      'radar_data': '{}',
+      'updated_at': new Date().toISOString()
+    };
+    await store.update(valueBucket, predicates);
   }
 }

@@ -1,10 +1,16 @@
 // 争议点展示组件
 import { Controversy } from '../models/Controversy';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Component
 export struct ControversyView {
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
   @Prop controversies: Controversy[] = [];
-  @State selectedIndex: number = 0;
+
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
 
   build() {
     Column() {
@@ -16,7 +22,7 @@ export struct ControversyView {
         
         Text(`共${this.controversies.length}个争议点`)
           .fontSize(12)
-          .fontColor('#999999')
+          .fontColor(this.colors().textTertiary)
           .margin({ left: 8 });
       }
       .width('100%')
@@ -30,7 +36,7 @@ export struct ControversyView {
 
           Text('暂无争议点')
             .fontSize(14)
-            .fontColor('#999999')
+            .fontColor(this.colors().textTertiary)
             .margin({ top: 12 });
 
           Text('点击"挖掘争议点"开始分析')
@@ -52,145 +58,149 @@ export struct ControversyView {
           });
         }
         .width('100%')
-        .height(400)
+        .layoutWeight(1)
         .barMode(BarMode.Scrollable);
       }
     }
     .width('100%')
-    .backgroundColor(Color.White)
+    .backgroundColor(this.colors().cardBg)
     .borderRadius(12);
   }
 
   @Builder
   ControversyDetail(controversy: Controversy): void {
-    Column() {
-      // 争议标题
-      Text(controversy.title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .width('100%')
-        .padding(16);
-
-      // 正方观点
+    Scroll() {
       Column() {
-        Row() {
-          Text('✅ 正方观点')
-            .fontSize(14)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#52C41A');
-        }
-        .width('100%');
-
-        Text(controversy.proViewpoint)
-          .fontSize(14)
-          .fontColor('#666666')
-          .margin({ top: 8 });
-
-        // 正方证据
-        if (controversy.proEvidence && controversy.proEvidence.length > 0) {
-          Column() {
-            ForEach(controversy.proEvidence, (evidence: Record<string, string>) => {
-              Row() {
-                Text('•')
-                  .fontSize(12)
-                  .margin({ right: 4 });
-                Text(evidence['title'] || evidence['content'] || '')
-                  .fontSize(12)
-                  .fontColor('#666666');
-              }
-              .width('100%')
-              .margin({ top: 4 });
-            });
-          }
+        // 争议标题
+        Text(controversy.title)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
           .width('100%')
-          .margin({ top: 8 });
-        }
-      }
-      .width('100%')
-      .padding(12)
-      .backgroundColor('#F6FFED')
-      .borderRadius(8)
-      .margin({ top: 8, left: 16, right: 16 });
+          .padding(16);
 
-      // 反方观点
-      Column() {
-        Row() {
-          Text('❌ 反方观点')
-            .fontSize(14)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#F5222D');
-        }
-        .width('100%');
-
-        Text(controversy.conViewpoint)
-          .fontSize(14)
-          .fontColor('#666666')
-          .margin({ top: 8 });
-
-        // 反方证据
-        if (controversy.conEvidence && controversy.conEvidence.length > 0) {
-          Column() {
-            ForEach(controversy.conEvidence, (evidence: Record<string, string>) => {
-              Row() {
-                Text('•')
-                  .fontSize(12)
-                  .margin({ right: 4 });
-                Text(evidence['title'] || evidence['content'] || '')
-                  .fontSize(12)
-                  .fontColor('#666666');
-              }
-              .width('100%')
-              .margin({ top: 4 });
-            });
-          }
-          .width('100%')
-          .margin({ top: 8 });
-        }
-      }
-      .width('100%')
-      .padding(12)
-      .backgroundColor('#FFF1F0')
-      .borderRadius(8)
-      .margin({ top: 12, left: 16, right: 16 });
-
-      // AI总结
-      if (controversy.aiSummary && controversy.aiSummary.length > 0) {
+        // 正方观点
         Column() {
           Row() {
-            Text('🤖 AI总结')
+            Text('✅ 正方观点')
               .fontSize(14)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#007DFF');
+              .fontColor('#52C41A');
           }
           .width('100%');
 
-          Text(controversy.aiSummary)
+          Text(controversy.proViewpoint)
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(this.colors().textSecondary)
             .margin({ top: 8 });
+
+          // 正方证据
+          if (controversy.proEvidence && controversy.proEvidence.length > 0) {
+            Column() {
+              ForEach(controversy.proEvidence, (evidence: Record<string, string>) => {
+                Row() {
+                  Text('•')
+                    .fontSize(12)
+                    .margin({ right: 4 });
+                  Text(evidence['title'] || evidence['content'] || '')
+                    .fontSize(12)
+                    .fontColor(this.colors().textSecondary);
+                }
+                .width('100%')
+                .margin({ top: 4 });
+              });
+            }
+            .width('100%')
+            .margin({ top: 8 });
+          }
         }
         .width('100%')
         .padding(12)
-        .backgroundColor('#E6F7FF')
+        .backgroundColor(this.themeMode === 'dark' ? '#1A3A1A' : '#F6FFED')
         .borderRadius(8)
-        .margin({ top: 12, left: 16, right: 16 });
-      } else {
+        .margin({ top: 8, left: 16, right: 16 });
+
+        // 反方观点
         Column() {
           Row() {
-            Text('生成AI总结中...')
+            Text('❌ 反方观点')
               .fontSize(14)
-              .fontColor('#999999');
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#F5222D');
           }
           .width('100%');
+
+          Text(controversy.conViewpoint)
+            .fontSize(14)
+            .fontColor(this.colors().textSecondary)
+            .margin({ top: 8 });
+
+          // 反方证据
+          if (controversy.conEvidence && controversy.conEvidence.length > 0) {
+            Column() {
+              ForEach(controversy.conEvidence, (evidence: Record<string, string>) => {
+                Row() {
+                  Text('•')
+                    .fontSize(12)
+                    .margin({ right: 4 });
+                  Text(evidence['title'] || evidence['content'] || '')
+                    .fontSize(12)
+                    .fontColor(this.colors().textSecondary);
+                }
+                .width('100%')
+                .margin({ top: 4 });
+              });
+            }
+            .width('100%')
+            .margin({ top: 8 });
+          }
         }
         .width('100%')
         .padding(12)
-        .backgroundColor('#F5F5F5')
+        .backgroundColor(this.themeMode === 'dark' ? '#3A1A1A' : '#FFF1F0')
         .borderRadius(8)
         .margin({ top: 12, left: 16, right: 16 });
+
+        // AI总结
+        if (controversy.aiSummary && controversy.aiSummary.length > 0) {
+          Column() {
+            Row() {
+              Text('🤖 AI总结')
+                .fontSize(14)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#007DFF');
+            }
+            .width('100%');
+
+            Text(controversy.aiSummary)
+              .fontSize(14)
+              .fontColor(this.colors().textSecondary)
+              .margin({ top: 8 });
+          }
+          .width('100%')
+          .padding(12)
+          .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
+          .borderRadius(8)
+          .margin({ top: 12, left: 16, right: 16 });
+        } else {
+          Column() {
+            Row() {
+              Text('生成AI总结中...')
+                .fontSize(14)
+                .fontColor(this.colors().textTertiary);
+            }
+            .width('100%');
+          }
+          .width('100%')
+          .padding(12)
+          .backgroundColor(this.colors().cardBg)
+          .borderRadius(8)
+          .margin({ top: 12, left: 16, right: 16 });
+        }
       }
+      .width('100%');
     }
     .width('100%')
-    .layoutWeight(1);
+    .layoutWeight(1)
+    .scrollBar(BarState.Auto);
   }
 }

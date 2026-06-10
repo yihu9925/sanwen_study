@@ -1,13 +1,13 @@
 // 测评详情页 - 自由答题交互 + 对话原始记录 + 评估报告
 // 核心变更：选择题(Radio) → 自由文本输入(TextArea) + LLM评判
-import { router } from '@kit.ArkUI';
-import { promptAction } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { fileIo } from '@kit.CoreFileKit';
 import { Question, AiEvaluation, BloomLevel, getBloomLevelName } from '../models/Question';
-import { RadarData } from '../models/Course';
 import { AssessmentService } from '../services/AssessmentService';
-import { RelationalStoreManager } from '../services/RelationalStoreManager';
+import { CourseService } from '../services/CourseService';
 import { AppRouter } from '../AppRouter';
 import { ExportService } from '../services/ExportService';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 // 测评统计条目
 interface AssessmentLevelStat {
@@ -28,6 +28,8 @@ interface WeaknessItem {
 @Component
 struct AssessmentDetailPage {
   @State courseId: string = '';
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
   @State questions: Question[] = [];
   @State currentIndex: number = 0;
   @State userAnswerText: string = '';       // 用户自由输入的回答
@@ -38,6 +40,13 @@ struct AssessmentDetailPage {
   @State showReport: boolean = false;        // 是否显示报告
   @State isLoading: boolean = false;
   @State answerDetails: AnswerDetailItem[] = []; // 对话记录
+  @State showAnswerCard: boolean = false;          // 答题卡弹窗
+  @State selectedChoiceIndex: number = -1;         // 选择题选中的选项索引
+
+  colors(): StyleColors {
+    const isDark = this.themeMode === 'dark';
+    return UiStyle.getColors(this.uiStyle, isDark);
+  }
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -45,6 +54,54 @@ struct AssessmentDetailPage {
     if (this.courseId) {
       this.loadQuestions();
     }
+    // 还原之前退出的答题进度
+    this.restoreAssessmentProgress();
+  }
+
+  aboutToDisappear(): void {
+    this.clearAssessmentProgress();
+  }
+
+  // 在退出时保存答题进度到 AppStorage（页面销毁后恢复）
+  saveAssessmentProgress(): void {
+    AppStorage.set<string>('assess_courseId', this.courseId);
+    AppStorage.set<number>('assess_currentIndex', this.currentIndex);
+    AppStorage.set<string>('assess_answerDetails', JSON.stringify(this.answerDetails));
+    AppStorage.set<string>('assess_allEvals', JSON.stringify(this.allEvaluations));
+    AppStorage.set<boolean>('assess_showReport', this.showReport);
+    AppStorage.set<string>('assess_userAnswer', this.userAnswerText);
+  }
+
+  restoreAssessmentProgress(): void {
+    const savedCourseId: string = AppStorage.get<string>('assess_courseId') as string;
+    if (savedCourseId !== this.courseId) {
+      return;
+    }
+    this.currentIndex = AppStorage.get<number>('assess_currentIndex') as number || 0;
+    this.showReport = AppStorage.get<boolean>('assess_showReport') as boolean || false;
+    this.userAnswerText = AppStorage.get<string>('assess_userAnswer') as string || '';
+    const detailsJson: string = AppStorage.get<string>('assess_answerDetails') as string || '';
+    if (detailsJson) {
+      this.answerDetails = JSON.parse(detailsJson) as AnswerDetailItem[];
+    }
+    const evalsJson: string = AppStorage.get<string>('assess_allEvals') as string || '';
+    if (evalsJson) {
+      this.allEvaluations = JSON.parse(evalsJson) as AiEvaluation[];
+    }
+    // 如果还原后有当前题的评判记录，显示它
+    if (this.currentIndex < this.answerDetails.length) {
+      this.evaluation = this.answerDetails[this.currentIndex].evaluation;
+      this.showEvaluation = true;
+    }
+  }
+
+  clearAssessmentProgress(): void {
+    AppStorage.delete('assess_courseId');
+    AppStorage.delete('assess_currentIndex');
+    AppStorage.delete('assess_answerDetails');
+    AppStorage.delete('assess_allEvals');
+    AppStorage.delete('assess_showReport');
+    AppStorage.delete('assess_userAnswer');
   }
 
   async loadQuestions(): Promise<void> {
@@ -58,36 +115,76 @@ struct AssessmentDetailPage {
     }
   }
 
-  // 提交自由回答 — 核心方法
+  // 提交回答 — 选择题直接判对错，开放题调用LLM评判
   async submitFreeAnswer(): Promise<void> {
-    if (!this.userAnswerText.trim() || this.currentIndex >= this.questions.length) {
+    if (this.currentIndex >= this.questions.length) {
       return;
     }
-    this.isSubmitting = true;
-    try {
-      const question = this.questions[this.currentIndex];
-      const result = await AssessmentService.submitFreeAnswer(
-        'default_user',
-        this.courseId,
-        question,
-        this.userAnswerText
-      );
-      this.evaluation = result.evaluation;
-      this.allEvaluations.push(result.evaluation);
-      // 保存对话原始记录
-      this.answerDetails.push({
-        questionText: question.questionText,
-        bloomLevel: question.bloomLevel,
-        userAnswerText: this.userAnswerText,
-        evaluation: result.evaluation,
-        score: result.score,
-        isCorrect: result.isCorrect
-      });
-      this.showEvaluation = true;
-    } catch (error) {
-      promptAction.showToast({ message: '\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
-    } finally {
-      this.isSubmitting = false;
+    const question = this.questions[this.currentIndex];
+    if (question.questionType === 'choice') {
+      if (this.selectedChoiceIndex < 0) { return; }
+      this.isSubmitting = true;
+      try {
+        const selectedText: string = question.options[this.selectedChoiceIndex] || '';
+        const isCorrect: boolean = selectedText.startsWith(question.correctAnswer + '.') ||
+          selectedText.startsWith(question.correctAnswer + '\u3001') ||
+          selectedText.startsWith(question.correctAnswer + ')') ||
+          selectedText.startsWith(question.correctAnswer + '\uff09') ||
+          selectedText.indexOf(question.correctAnswer) === 0;
+        const score: number = isCorrect ? 100 : 0;
+        const evalItem: AiEvaluation = {
+          score: score,
+          comment: isCorrect ? '\u56de\u7b54\u6b63\u786e\uff01' : '\u56de\u7b54\u9519\u8bef\uff0c\u6b63\u786e\u7b54\u6848\u4e3a' + question.correctAnswer,
+          strengths: isCorrect ? ['\u9009\u62e9\u6b63\u786e'] : [],
+          weaknesses: isCorrect ? [] : ['\u9009\u62e9\u9519\u8bef'],
+          improvement: '\u53c2\u8003\u89e3\u91ca\uff1a' + question.explanation
+        };
+        this.evaluation = evalItem;
+        this.allEvaluations.push(evalItem);
+        this.answerDetails.push({
+          questionText: question.questionText,
+          bloomLevel: question.bloomLevel,
+          userAnswerText: selectedText,
+          evaluation: evalItem,
+          score: score,
+          isCorrect: isCorrect
+        });
+        // 保存学习记录到 DB
+        await AssessmentService.saveLearningRecord('default_user', this.courseId, question, selectedText, evalItem, score, isCorrect);
+        this.showEvaluation = true;
+        this.saveAssessmentProgress();
+      } catch (e) {
+        promptAction.showToast({ message: '\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
+      } finally {
+        this.isSubmitting = false;
+      }
+    } else {
+      if (!this.userAnswerText.trim()) { return; }
+      this.isSubmitting = true;
+      try {
+        const result = await AssessmentService.submitFreeAnswer(
+          'default_user',
+          this.courseId,
+          question,
+          this.userAnswerText
+        );
+        this.evaluation = result.evaluation;
+        this.allEvaluations.push(result.evaluation);
+        this.answerDetails.push({
+          questionText: question.questionText,
+          bloomLevel: question.bloomLevel,
+          userAnswerText: this.userAnswerText,
+          evaluation: result.evaluation,
+          score: result.score,
+          isCorrect: result.isCorrect
+        });
+        this.showEvaluation = true;
+        this.saveAssessmentProgress();
+      } catch (error) {
+        promptAction.showToast({ message: '\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
+      } finally {
+        this.isSubmitting = false;
+      }
     }
   }
 
@@ -97,9 +194,13 @@ struct AssessmentDetailPage {
       this.userAnswerText = '';
       this.showEvaluation = false;
       this.evaluation = null;
+      this.selectedChoiceIndex = -1;
+      this.saveAssessmentProgress();
     } else {
-      // 更新雷达数据
+      // 全部答完 -> 标记第三问完成 + 更新雷达数据
       this.updateRadarAfterAssessment();
+      CourseService.updateProgress(this.courseId, 3);
+      this.clearAssessmentProgress();
       this.showReport = true;
     }
   }
@@ -134,6 +235,33 @@ struct AssessmentDetailPage {
     }
   }
 
+  // 答题卡：判断某题是否已答
+  hasAnswerFor(index: number): boolean {
+    if (index >= this.answerDetails.length) {
+      return false;
+    }
+    const q = this.questions[index];
+    const detail = this.answerDetails[index];
+    return detail !== undefined && detail.questionText === q.questionText;
+  }
+
+  // 答题卡：跳转到指定题
+  jumpToQuestion(index: number): void {
+    this.showAnswerCard = false;
+    this.currentIndex = index;
+    this.selectedChoiceIndex = -1;
+    if (this.hasAnswerFor(index)) {
+      const detail = this.answerDetails[index];
+      this.evaluation = detail.evaluation;
+      this.userAnswerText = detail.userAnswerText;
+      this.showEvaluation = true;
+    } else {
+      this.userAnswerText = '';
+      this.showEvaluation = false;
+      this.evaluation = null;
+    }
+  }
+
   getAverageScore(): number {
     if (this.allEvaluations.length === 0) return 0;
     const total = this.allEvaluations.reduce((s, e) => s + e.score, 0);
@@ -141,27 +269,34 @@ struct AssessmentDetailPage {
   }
 
   build() {
-    Column() {
-      if (this.showReport) {
-        this.ReportView();
-      } else if (this.isLoading) {
-        this.LoadingView();
-      } else if (this.questions.length === 0) {
-        this.EmptyView();
-      } else {
-        this.QuestionView();
+    Stack() {
+      Column() {
+        if (this.showReport) {
+          this.ReportView();
+        } else if (this.isLoading) {
+          this.LoadingView();
+        } else if (this.questions.length === 0) {
+          this.EmptyView();
+        } else {
+          this.QuestionView();
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(this.colors().pageBg);
+
+      // 答题卡遮罩
+      if (this.showAnswerCard) {
+        this.AnswerCardOverlay();
       }
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#F5F5F5');
   }
 
   @Builder
   LoadingView(): void {
     Column() {
       LoadingProgress().width(48).height(48);
-      Text('\u52a0\u8f7d\u4e2d...').fontSize(14).fontColor('#999999').margin({ top: 12 });
+      Text('\u52a0\u8f7d\u4e2d...').fontSize(14).fontColor(this.colors().textTertiary).margin({ top: 12 });
     }
     .width('100%').height('100%').justifyContent(FlexAlign.Center);
   }
@@ -169,7 +304,7 @@ struct AssessmentDetailPage {
   @Builder
   EmptyView(): void {
     Column() {
-      Text('\u6682\u65e0\u9898\u76ee').fontSize(16).fontColor('#999999');
+      Text('\u6682\u65e0\u9898\u76ee').fontSize(16).fontColor(this.colors().textTertiary);
       Button('\u8fd4\u56de').margin({ top: 16 }).onClick(() => { AppRouter.back(); });
     }
     .width('100%').height('100%').justifyContent(FlexAlign.Center);
@@ -183,7 +318,7 @@ struct AssessmentDetailPage {
         // 报告标题
         Text('\u8bc4\u4f30\u62a5\u544a').fontSize(22).fontWeight(FontWeight.Bold).margin({ top: 24, bottom: 4 });
         Text('\u5171' + this.questions.length + '\u9898\uff0c\u5df2\u7b54' + this.answerDetails.length + '\u9898')
-          .fontSize(14).fontColor('#666666').margin({ bottom: 16 });
+          .fontSize(14).fontColor(this.colors().textSecondary).margin({ bottom: 16 });
 
         // 统计卡片
         Row() {
@@ -191,7 +326,7 @@ struct AssessmentDetailPage {
           this.StatCard(String(this.answerDetails.length), '\u5df2\u7b54', this.answerDetails.length > 0 ? '#4CAF50' : '#999999');
           this.StatCard(String(this.getAverageScore()), '\u5747\u5206', this.getAverageScore() >= 60 ? '#4CAF50' : '#FF9800');
         }
-        .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12);
+        .width('100%').padding(16).backgroundColor(this.colors().cardBg).borderRadius(12);
 
         // 布鲁姆维度分析
         Text('\u8ba4\u77e5\u5c42\u6b21\u5206\u6790').fontSize(18).fontWeight(FontWeight.Bold)
@@ -204,7 +339,7 @@ struct AssessmentDetailPage {
           this.ReportRow('\u8bc4\u4ef7', this.getLevelAvgScore(5));
           this.ReportRow('\u521b\u9020', this.getLevelAvgScore(6));
         }
-        .width('100%').padding(12).backgroundColor(Color.White).borderRadius(12);
+        .width('100%').padding(12).backgroundColor(this.colors().cardBg).borderRadius(12);
 
         // 对话原始记录
         Text('\u5bf9\u8bdd\u539f\u59cb\u8bb0\u5f55').fontSize(18).fontWeight(FontWeight.Bold)
@@ -223,19 +358,19 @@ struct AssessmentDetailPage {
 
             Row() {
               Text('\u9898\u76ee: ' + detail.questionText)
-                .fontSize(13).fontColor('#333333').margin({ top: 6 });
+                .fontSize(13).fontColor(this.colors().textPrimary).margin({ top: 6 });
             }
             .width('100%');
 
             Row() {
               Text('\u4f60\u7684\u56de\u7b54: ' + detail.userAnswerText)
-                .fontSize(13).fontColor('#666666').margin({ top: 4 });
+                .fontSize(13).fontColor(this.colors().textSecondary).margin({ top: 4 });
             }
             .width('100%');
 
             Row() {
               Text('AI\u8bc4\u8bed: ' + detail.evaluation.comment)
-                .fontSize(13).fontColor('#999999').margin({ top: 4 });
+                .fontSize(13).fontColor(this.colors().textTertiary).margin({ top: 4 });
             }
             .width('100%');
 
@@ -261,7 +396,7 @@ struct AssessmentDetailPage {
             }
             .width('100%');
           }
-          .width('100%').padding(12).backgroundColor(Color.White).borderRadius(8).margin({ bottom: 8 });
+          .width('100%').padding(12).backgroundColor(this.colors().cardBg).borderRadius(8).margin({ bottom: 8 });
         });
 
         Text('\u96f7\u8fbe\u6570\u636e\u5df2\u81ea\u52a8\u66f4\u65b0').fontSize(13).fontColor('#4CAF50')
@@ -270,13 +405,13 @@ struct AssessmentDetailPage {
         Row() {
           Button('📄 \u5BFC\u51FA JSON')
             .height(40).borderRadius(20)
-            .backgroundColor('#E6F7FF').fontColor('#007DFF')
+            .backgroundColor(this.colors().accentLight).fontColor('#007DFF')
             .layoutWeight(1).margin({ right: 4 })
             .onClick(() => { this.exportReport('json'); });
 
           Button('📝 \u5BFC\u51FA Markdown')
             .height(40).borderRadius(20)
-            .backgroundColor('#FFF7E6').fontColor('#FF9800')
+            .backgroundColor(this.colors().accentLight).fontColor('#FF9800')
             .layoutWeight(1).margin({ left: 4 })
             .onClick(() => { this.exportReport('md'); });
         }
@@ -299,10 +434,18 @@ struct AssessmentDetailPage {
       } else {
         content = await ExportService.exportReportAsMarkdown(this.courseId, title);
       }
-      // 在ArkTS中，文件保存通过 fileIo 实现
-      // 此处调用系统分享或剪贴板
-      promptAction.showToast({ message: '\u5bfc\u51fa\u5b8c\u6210\uff0c\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f' });
+      // 保存到应用沙箱 filesDir（DevEco Studio 设备文件浏览器可拉取）
+      const context: Context = getContext(this) as Context;
+      const dir: string = context.filesDir;
+      const timestamp: string = new Date().getTime().toString();
+      const fileName: string = 'report_' + timestamp + (format === 'json' ? '.json' : '.md');
+      const filePath: string = dir + '/' + fileName;
+      const file: fileIo.File = fileIo.openSync(filePath, fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY);
+      fileIo.writeSync(file.fd, content);
+      fileIo.closeSync(file);
+      promptAction.showToast({ message: '\u5bfc\u51fa\u6210\u529f\uff1a' + fileName });
     } catch (e) {
+      console.error('Export failed: ' + (e as Error).message);
       promptAction.showToast({ message: '\u5bfc\u51fa\u5931\u8d25' });
     }
   }
@@ -347,10 +490,10 @@ struct AssessmentDetailPage {
           }
           .width('100%');
 
-          Text('\u9898\u76ee: ' + detail.questionText).fontSize(12).fontColor('#333333')
+          Text('\u9898\u76ee: ' + detail.questionText).fontSize(12).fontColor(this.colors().textPrimary)
             .width('100%').margin({ top: 4 }).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis });
         }
-        .padding(8).backgroundColor(detail.score >= 60 ? '#F1F8E9' : '#FFF3E0').borderRadius(6)
+        .padding(8).backgroundColor(this.colors().accentLight).borderRadius(6)
         .width('100%').margin({ top: 4 });
       });
     }
@@ -372,7 +515,7 @@ struct AssessmentDetailPage {
   StatCard(value: string, label: string, color: string): void {
     Column() {
       Text(value).fontSize(26).fontWeight(FontWeight.Bold).fontColor(color);
-      Text(label).fontSize(12).fontColor('#999999').margin({ top: 4 });
+      Text(label).fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
     }
     .layoutWeight(1);
   }
@@ -384,41 +527,119 @@ struct AssessmentDetailPage {
       Row() {
         Row().width(String(pct) + '%').height(14).backgroundColor(this.reportColor(pct)).borderRadius(7);
       }
-      .width(120).height(14).backgroundColor('#F0F0F0').borderRadius(7).margin({ left: 8 });
+      .width(120).height(14).backgroundColor(this.colors().divider).borderRadius(7).margin({ left: 8 });
       Text(String(pct) + '%').fontSize(13).fontColor(this.reportColor(pct)).width(40).textAlign(TextAlign.End);
     }
     .width('100%').margin({ top: 6, bottom: 6 });
+  }
+
+  // ===== 答题卡弹窗 =====
+  @Builder
+  AnswerCardOverlay(): void {
+    Column() {
+      Column() {
+        // 标题行
+        Row() {
+          Text('\u7b54\u9898\u5361').fontSize(18).fontWeight(FontWeight.Bold);
+          Blank();
+          Button() {
+            Text('\u2716').fontSize(16).fontColor('#999999');
+          }
+          .width(32).height(32).backgroundColor(Color.Transparent)
+          .onClick(() => { this.showAnswerCard = false; });
+        }
+        .width('100%').margin({ bottom: 16 });
+
+        // 统计
+        Row() {
+          Text('\u603b' + this.questions.length + '\u9898')
+            .fontSize(13).fontColor(this.colors().textSecondary);
+          Text('\u5df2\u7b54' + this.answerDetails.length + '\u9898')
+            .fontSize(13).fontColor('#4CAF50').margin({ left: 12 });
+        }
+        .width('100%').margin({ bottom: 16 });
+
+        // 题号网格
+        Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
+          ForEach(this.questions, (q: Question, idx: number) => {
+            Column() {
+              Button(String(idx + 1))
+                .width(44).height(44)
+                .borderRadius(8)
+                .backgroundColor(
+                  idx === this.currentIndex ? '#007DFF' :
+                  this.hasAnswerFor(idx) ? '#4CAF50' :
+                  (this.colors().divider)
+                )
+                .fontColor(
+                  idx === this.currentIndex ? Color.White :
+                  this.hasAnswerFor(idx) ? Color.White :
+                  (this.colors().textPrimary)
+                )
+                .fontSize(16).fontWeight(FontWeight.Bold)
+                .onClick(() => { this.jumpToQuestion(idx); });
+            }
+            .margin(4);
+          });
+        }
+        .width('100%');
+      }
+      .width('85%').padding(20)
+      .backgroundColor(this.colors().cardBg)
+      .borderRadius(16);
+    }
+    .width('100%').height('100%')
+    .backgroundColor('#80000000')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .onClick(() => { this.showAnswerCard = false; });
   }
 
   // ===== 答题视图（TextArea自由输入）=====
   @Builder
   QuestionView(): void {
     Column() {
-      // 顶部进度
+      // 顶部栏：退出 + 进度
       Row() {
+        Button() {
+          Text('\u2190').fontSize(18).fontColor(this.colors().textPrimary);
+        }
+        .width(36).height(36).backgroundColor(Color.Transparent)
+        .onClick(() => {
+          this.saveAssessmentProgress();
+          AppRouter.back();
+        });
+        Blank();
         Text('\u9898\u76ee ' + (this.currentIndex + 1) + ' / ' + this.questions.length)
-          .fontSize(14).fontColor('#666666');
+          .fontSize(14).fontColor(this.colors().textSecondary);
+        Blank();
+        Button() {
+          Text('\u7b54\u9898\u5361').fontSize(13).fontColor('#007DFF');
+        }
+        .height(32).borderRadius(16).backgroundColor(this.colors().accentLight)
+        .onClick(() => { this.showAnswerCard = !this.showAnswerCard; });
       }
-      .width('100%').padding({ left: 16, right: 16, top: 12, bottom: 12 })
-      .backgroundColor(Color.White);
+      .width('100%').padding({ left: 8, right: 16, top: 8, bottom: 8 })
+      .backgroundColor(this.colors().cardBg);
 
       Scroll() {
         Column() {
           // 题目卡片
           Column() {
             Row() {
-              // 难度标签
               Text('\u2b50'.repeat(this.questions[this.currentIndex].difficulty))
                 .fontSize(14);
             }
             .width('100%');
 
-            // 布鲁姆层级
+            // 标签（可多个）
             Row() {
-              Text(getBloomLevelName(this.questions[this.currentIndex].bloomLevel))
-                .fontSize(12).fontColor(Color.White)
-                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .backgroundColor('#007DFF').borderRadius(4);
+              ForEach(this.questions[this.currentIndex].labels, (label: string) => {
+                Text(label)
+                  .fontSize(12).fontColor(Color.White)
+                  .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                  .backgroundColor('#007DFF').borderRadius(4).margin({ right: 6 });
+              });
             }
             .width('100%').margin({ top: 8 });
 
@@ -426,21 +647,39 @@ struct AssessmentDetailPage {
             Text(this.questions[this.currentIndex].questionText)
               .fontSize(18).fontWeight(FontWeight.Bold).margin({ top: 16 });
 
-            // 自由输入文本框（核心变更：TextArea替代Radio组）
-            Text('\u4f60\u7684\u56de\u7b54')
-              .fontSize(14).fontColor('#333333').margin({ top: 24, bottom: 8 });
-
-            TextArea({
-              text: this.userAnswerText,
-              placeholder: '\u8bf7\u5728\u6b64\u81ea\u7531\u8f93\u5165\u4f60\u7684\u56de\u7b54...'
-            })
-              .width('100%').height(180)
-              .onChange((value: string) => {
-                this.userAnswerText = value;
-              });
+            // 根据题型显示：选择题→Radio组，开放题→TextArea
+            if (this.questions[this.currentIndex].questionType === 'choice') {
+              Text('\u8bf7\u9009\u62e9\u7b54\u6848')
+                .fontSize(14).fontColor(this.colors().textPrimary).margin({ top: 24, bottom: 8 });
+              Column() {
+                ForEach(this.questions[this.currentIndex].options, (opt: string, optIdx: number) => {
+                  Row() {
+                    Radio({ value: String(optIdx), group: 'q' + this.currentIndex })
+                      .onChange(() => {
+                        this.selectedChoiceIndex = optIdx;
+                        this.userAnswerText = opt;
+                      });
+                    Text(opt).fontSize(15).fontColor(this.colors().textPrimary).margin({ left: 8 });
+                  }
+                  .width('100%').margin({ top: 8 });
+                });
+              }
+              .width('100%');
+            } else {
+              Text('\u4f60\u7684\u56de\u7b54')
+                .fontSize(14).fontColor(this.colors().textPrimary).margin({ top: 24, bottom: 8 });
+              TextArea({
+                text: this.userAnswerText,
+                placeholder: '\u8bf7\u5728\u6b64\u81ea\u7531\u8f93\u5165\u4f60\u7684\u56de\u7b54...'
+              })
+                .width('100%').height(180)
+                .onChange((value: string) => {
+                  this.userAnswerText = value;
+                });
+            }
           }
-          .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12);
-
+      .width('100%').padding(16).backgroundColor(this.colors().cardBg).borderRadius(12);
+ 
           // LLM评判结果展示（提交后显示）
           if (this.showEvaluation && this.evaluation) {
             Column() {
@@ -452,7 +691,7 @@ struct AssessmentDetailPage {
               .width('100%');
 
               Row() {
-                Text(this.evaluation.comment).fontSize(14).fontColor('#333333');
+                Text(this.evaluation.comment).fontSize(14).fontColor(this.colors().textPrimary);
               }
               .width('100%').margin({ top: 8 });
 
@@ -478,7 +717,7 @@ struct AssessmentDetailPage {
               }
               .width('100%').margin({ top: 4 });
             }
-            .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12).margin({ top: 12 });
+            .width('100%').padding(16).backgroundColor(this.colors().cardBg).borderRadius(12).margin({ top: 12 });
           }
         }
         .width('100%').padding(16);
@@ -488,25 +727,34 @@ struct AssessmentDetailPage {
       // 底部按钮
       Row() {
         if (!this.showEvaluation) {
-          // 提交按钮（等待LLM评判时禁用）
+          Button('\u7b54\u9898\u5361')
+            .height(44).borderRadius(22)
+            .backgroundColor(this.colors().divider).fontColor(this.colors().textPrimary)
+            .margin({ right: 8 })
+            .onClick(() => { this.showAnswerCard = !this.showAnswerCard; });
           Button('\u63d0\u4ea4\u56de\u7b54')
-            .width('100%').height(44).borderRadius(22)
-            .enabled(this.userAnswerText.trim().length > 0 && !this.isSubmitting)
+            .layoutWeight(1).height(44).borderRadius(22)
+            .enabled((this.questions[this.currentIndex].questionType === 'choice' ? this.selectedChoiceIndex >= 0 : this.userAnswerText.trim().length > 0) && !this.isSubmitting)
             .onClick(() => { this.submitFreeAnswer(); });
 
           if (this.isSubmitting) {
             // 提交中显示加载提示
-            Text('AI\u8bc4\u5224\u4e2d...').fontSize(12).fontColor('#999999').margin({ top: 4 });
+            Text('AI\u8bc4\u5224\u4e2d...').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
           }
         } else {
+          Button('\u7b54\u9898\u5361')
+            .height(44).borderRadius(22)
+            .backgroundColor(this.colors().divider).fontColor(this.colors().textPrimary)
+            .margin({ right: 8 })
+            .onClick(() => { this.showAnswerCard = !this.showAnswerCard; });
           Button(this.currentIndex < this.questions.length - 1
             ? '\u4e0b\u4e00\u9898 \u2192'
             : '\u67e5\u770b\u62a5\u544a')
-            .width('100%').height(44).borderRadius(22)
+            .layoutWeight(1).height(44).borderRadius(22)
             .onClick(() => { this.nextQuestion(); });
         }
       }
-      .width('100%').padding(16).backgroundColor(Color.White);
+      .width('100%').padding(16).backgroundColor(this.colors().cardBg);
     }
     .width('100%').height('100%');
   }

@@ -1,8 +1,7 @@
 // 测评服务（自由答题模式）
 // 核心变更：选择题对比 → 自由输入 + LLM评判
 import { relationalStore } from '@kit.ArkData';
-import { Question, BloomLevel, AiEvaluation, LearningRecord } from '../models/Question';
-import { RadarData } from '../models/Course';
+import { Question, BloomLevel, AiEvaluation, LearningRecord, getBloomLevelName } from '../models/Question';
 import { RelationalStoreManager } from './RelationalStoreManager';
 import { LLMService } from './LLMService';
 import { generateUUID } from '../utils/UUID';
@@ -25,10 +24,10 @@ export class AssessmentService {
   static async generateQuestions(
     courseId: string,
     content: string,
-    bloomLevel: BloomLevel,
-    count: number
+    count: number,
+    difficultyHint?: string
   ): Promise<Question[]> {
-    const questions = await LLMService.generateQuestions(content, bloomLevel, count);
+    const questions = await LLMService.generateQuestions(content, count, difficultyHint);
 
     // 保存到数据库
     const store = RelationalStoreManager.getStore();
@@ -37,7 +36,7 @@ export class AssessmentService {
     for (const question of questions) {
       question.id = generateUUID();
       question.courseId = courseId;
-      question.questionType = 'open';
+      // question.questionType 由 LLM 生成结果决定
 
       const valueBucket: relationalStore.ValuesBucket = {};
       valueBucket['id'] = question.id;
@@ -48,13 +47,43 @@ export class AssessmentService {
       valueBucket['correct_answer'] = question.correctAnswer;
       valueBucket['explanation'] = question.explanation;
       valueBucket['difficulty'] = question.difficulty;
-      valueBucket['question_type'] = 'open';
+      valueBucket['question_type'] = question.questionType || 'open';
+      valueBucket['labels'] = JSON.stringify(question.labels || [getBloomLevelName(question.bloomLevel)]);
       valueBucket['created_at'] = now;
 
       await store.insert('question', valueBucket);
     }
 
     return questions;
+  }
+
+  // 批量保存预生成的测评题（不调用LLM，只写入DB）
+  static async saveQuestions(
+    courseId: string,
+    questions: Question[]
+  ): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const now = new Date().toISOString();
+
+    for (const question of questions) {
+      question.id = generateUUID();
+      question.courseId = courseId;
+
+      const valueBucket: relationalStore.ValuesBucket = {};
+      valueBucket['id'] = question.id;
+      valueBucket['course_id'] = courseId;
+      valueBucket['bloom_level'] = question.bloomLevel;
+      valueBucket['question_text'] = question.questionText;
+      valueBucket['options'] = JSON.stringify(question.options);
+      valueBucket['correct_answer'] = question.correctAnswer;
+      valueBucket['explanation'] = question.explanation;
+      valueBucket['difficulty'] = question.difficulty;
+      valueBucket['question_type'] = question.questionType || 'open';
+      valueBucket['labels'] = JSON.stringify(question.labels || [getBloomLevelName(question.bloomLevel)]);
+      valueBucket['created_at'] = now;
+
+      await store.insert('question', valueBucket);
+    }
   }
 
   // 获取测评题
@@ -67,16 +96,25 @@ export class AssessmentService {
     const questions: Question[] = [];
 
     while (resultSet.goToNextRow()) {
+      const rawType: string = resultSet.getString(9);
+      const labelsStr: string = resultSet.getString(10);
+      let labels: string[] = [];
+      try {
+        labels = JSON.parse(labelsStr) as string[];
+      } catch (e) {
+        labels = [getBloomLevelName(resultSet.getLong(2) as BloomLevel)];
+      }
       questions.push({
         id: resultSet.getString(0),
         courseId: resultSet.getString(1),
         bloomLevel: resultSet.getLong(2) as BloomLevel,
+        labels: labels,
         questionText: resultSet.getString(3),
         options: JSON.parse(resultSet.getString(4)),
         correctAnswer: resultSet.getString(5),
         explanation: resultSet.getString(6),
         difficulty: resultSet.getLong(7),
-        questionType: 'open'
+        questionType: rawType === 'choice' ? 'choice' : 'open'
       });
     }
     resultSet.close();
@@ -117,6 +155,36 @@ export class AssessmentService {
 
     const result: SubmitFreeAnswerResult = { isCorrect, score: evaluation.score, evaluation };
     return result;
+  }
+
+  // 直接保存学习记录（用于选择题，不需要LLM评判）
+  static async saveLearningRecord(
+    userId: string,
+    courseId: string,
+    question: Question,
+    userAnswerText: string,
+    evaluation: AiEvaluation,
+    score: number,
+    isCorrect: boolean
+  ): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const recordId: string = generateUUID();
+    const now: string = new Date().toISOString();
+    const recordValueBucket: relationalStore.ValuesBucket = {
+      'id': recordId,
+      'user_id': userId,
+      'course_id': courseId,
+      'question_id': question.id,
+      'bloom_level': question.bloomLevel,
+      'user_answer': '',
+      'user_answer_text': userAnswerText,
+      'ai_evaluation': JSON.stringify(evaluation),
+      'is_correct': isCorrect ? 1 : 0,
+      'score': score,
+      'attempt_count': 1,
+      'answered_at': now
+    };
+    await store.insert('learning_record', recordValueBucket);
   }
 
   // 获取学习记录

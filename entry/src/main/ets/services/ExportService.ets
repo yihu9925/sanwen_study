@@ -1,5 +1,5 @@
 // 数据导出服务（JSON/Markdown 格式）
-import { Question, AiEvaluation, BloomLevel } from '../models/Question';
+import { Question } from '../models/Question';
 import { AssessmentService } from './AssessmentService';
 
 export class ExportService {

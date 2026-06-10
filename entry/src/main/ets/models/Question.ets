@@ -25,12 +25,13 @@ export interface Question {
   id: string;
   courseId: string;
   bloomLevel: BloomLevel;
+  labels: string[];            // 标签列表（可单可多，如["记忆"]或["理解","应用"]）
   questionText: string;
-  options: string[];          // 选项数组（开放题可为空）
-  correctAnswer: string;      // 参考答案
-  explanation: string;        // 知识点提示
-  difficulty: number;         // 1~5 难度等级
-  questionType: QuestionType; // 题目类型，默认 'open'
+  options: string[];           // 选项数组（选择题4个选项，开放题可为空）
+  correctAnswer: string;       // 参考答案/正确答案
+  explanation: string;         // 知识点提示
+  difficulty: number;          // 1~5 难度等级
+  questionType: QuestionType;  // 题目类型，默认 'open'
 }
 
 // LLM评判结果
@@ -82,21 +83,6 @@ export interface AnswerDetail {
   evaluation: AiEvaluation;
   isCorrect: boolean;
   score: number;
-}
-
-// 创建默认问题
-export function createDefaultQuestion(id: string, courseId: string): Question {
-  return {
-    id: id,
-    courseId: courseId,
-    bloomLevel: 1,
-    questionText: '',
-    options: [],
-    correctAnswer: '',
-    explanation: '',
-    difficulty: 1,
-    questionType: 'open'
-  };
 }
 
 // 获取布鲁姆层级中文名

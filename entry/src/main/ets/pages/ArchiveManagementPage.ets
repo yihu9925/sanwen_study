@@ -3,11 +3,18 @@ import { Course } from '../models/Course';
 import { CourseService } from '../services/CourseService';
 import { AppRouter } from '../AppRouter';
 import { promptAction } from '@kit.ArkUI';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Entry
 @Component
 struct ArchiveManagementPage {
   @State archivedCourses: Course[] = [];
+  @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
+
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle || 'default', this.themeMode === 'dark');
+  }
 
   aboutToAppear(): void {
     this.loadArchivedCourses();
@@ -54,7 +61,7 @@ struct ArchiveManagementPage {
       }
       .width('100%')
       .padding(16)
-      .backgroundColor(Color.White);
+      .backgroundColor(this.colors().cardBg);
 
       // 归档列表
       if (this.archivedCourses.length === 0) {
@@ -64,7 +71,7 @@ struct ArchiveManagementPage {
 
           Text('暂无归档课程')
             .fontSize(16)
-            .fontColor('#999999')
+            .fontColor(this.colors().textTertiary)
             .margin({ top: 16 });
         }
         .width('100%')
@@ -82,7 +89,7 @@ struct ArchiveManagementPage {
 
                   Text(course.domain)
                     .fontSize(12)
-                    .fontColor('#999999')
+                    .fontColor(this.colors().textTertiary)
                     .margin({ top: 4 });
                 }
                 .layoutWeight(1)
@@ -106,7 +113,7 @@ struct ArchiveManagementPage {
               }
               .width('100%')
               .padding(16)
-              .backgroundColor(Color.White)
+              .backgroundColor(this.colors().cardBg)
               .borderRadius(8);
             }
             .margin({ bottom: 8 });
@@ -119,6 +126,6 @@ struct ArchiveManagementPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5');
+    .backgroundColor(this.colors().pageBg);
   }
 }

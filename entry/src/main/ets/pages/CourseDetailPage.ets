@@ -1,6 +1,7 @@
 // 课程详情页 - 三问学习法
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
+import { picker } from '@kit.CoreFileKit';
 import { Course } from '../models/Course';
 import { KnowledgeGraph, GraphNode } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
@@ -18,6 +19,7 @@ import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
 import { getTimeAgo } from '../utils/DateUtils';
+import { UiStyle, StyleColors } from '../utils/UiStyle';
 import { parseParagraphs, parseContentSegments, ContentSegment } from '../utils/ContentUtils';
 
 @Entry
@@ -32,6 +34,7 @@ struct CourseDetailPage {
   @State documents: Document[] = [];
   @State isLoading: boolean = false;
   @StorageLink('themeMode') themeMode: string = 'auto';
+  @StorageLink('uiStyle') uiStyle: string = 'default';
   @State contentStatus: CourseContentStatus | null = null;
   @State isFilling: number = 0;  // 0=none, 1=filling Q1, 2=filling Q2, 3=filling Q3
   @State graphKey: number = 0;   // 递增以强制刷新知识图谱组件
@@ -40,7 +43,11 @@ struct CourseDetailPage {
   @State selectedGraphNodeId: string = ''; // 选中聚焦的图节点ID
   @State selectedDoc: Document | null = null;
   @State showDocSheet: boolean = false;
+  @State hasScrolledControversy: boolean = false;
+  @StorageLink('genStep') generationStep: string = '';
+  @StorageLink('genProgress') generationProgress: number = 0;
   @State docSegments: ContentSegment[] = [];
+  private pollTimer: number = -1;
   private loadedOnce: boolean = false;
 
   aboutToAppear(): void {
@@ -63,6 +70,14 @@ struct CourseDetailPage {
 
   aboutToDisappear(): void {
     EventBus.clear();
+    if (this.pollTimer > 0) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = -1;
+    }
+  }
+
+  colors(): StyleColors {
+    return UiStyle.getColors(this.uiStyle, this.themeMode === 'dark');
   }
 
   setupEventListeners(): void {
@@ -97,7 +112,6 @@ struct CourseDetailPage {
       this.course = await CourseService.getCourseById(this.courseId);
       
       if (this.course) {
-        // 加载三问数据
         await Promise.all([
           this.loadKnowledgeGraph(),
           this.loadControversies(),
@@ -105,17 +119,39 @@ struct CourseDetailPage {
           this.loadDocuments()
         ]);
 
-        // 如果内容为空（新创建的课程），自动触发生成
         if (this.knowledgeGraph.nodes.length === 0 && this.knowledgeGraph.edges.length === 0) {
-          this.generateContent();
+          const genCourseId: string = AppStorage.get<string>('genCourseId') || '';
+          if (genCourseId === this.courseId) {
+            // 后台仍在生成,进入等待模式
+            this.startPollingForCompletion();
+            this.isLoading = true;
+            return;
+          }
+          // 全新生成
+          await this.generateContent();
+          return;
         }
       }
+      this.isLoading = false;
     } catch (error) {
       console.error('Load course failed:', error);
-      promptAction.showToast({ message: '加载课程失败' });
-    } finally {
+      promptAction.showToast({ message: '\u52a0\u8f7d\u8bfe\u7a0b\u5931\u8d25' });
       this.isLoading = false;
     }
+  }
+
+  private startPollingForCompletion(): void {
+    if (this.pollTimer > 0) return;
+    this.pollTimer = setInterval(async () => {
+      const genCourseId: string = AppStorage.get<string>('genCourseId') || '';
+      if (genCourseId !== this.courseId) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = -1;
+        setTimeout(() => {
+          this.loadCourseData();
+        }, 800);
+      }
+    }, 2000);
   }
 
   // 仅重新加载课程数据（不触发内容生成）
@@ -153,16 +189,13 @@ struct CourseDetailPage {
 
       if (part === 1) {
         success = await CourseHealthService.fillQ1KnowledgeGraph(this.courseId, question);
-        await this.loadKnowledgeGraph();
       } else if (part === 2) {
         success = await CourseHealthService.fillQ2Controversies(this.courseId, question);
-        await this.loadControversies();
       } else if (part === 3) {
         success = await CourseHealthService.fillQ3Questions(this.courseId, question);
-        await this.loadQuestions();
       }
 
-      // 重新加载所有数据
+      // 重新加载所有数据并触发 Canvas 重建
       const results = await Promise.all([
         CourseService.getCourseById(this.courseId),
         KnowledgeBaseService.getKnowledgeGraph(this.courseId),
@@ -173,6 +206,8 @@ struct CourseDetailPage {
       this.knowledgeGraph = results[1] as KnowledgeGraph;
       this.controversies = results[2] as Controversy[];
       this.questions = results[3] as Question[];
+      this.graphKey++;
+      this.radarKey++;
       // 重新检测状态
       this.contentStatus = await CourseHealthService.checkCourseStatus(this.courseId);
 
@@ -196,14 +231,19 @@ struct CourseDetailPage {
 
     try {
       this.isLoading = true;
+      AppStorage.set<string>('genCourseId', this.courseId);
+      await CourseService.resetProgress(this.courseId);
       
       // ===== 第一步：AI自动生成资料库内容 =====
-      promptAction.showToast({ message: '\u6b63\u5728\u751f\u6210\u5b66\u4e60\u8d44\u6599...' });
+      this.generationStep = '\u6b63\u5728\u751f\u6210\u5b66\u4e60\u8d44\u6599...';
+      this.generationProgress = 10;
       const docCount: number = await KnowledgeBaseService.generateAIDocuments(
         this.courseId, this.course.question
       );
 
       // ===== 第二步：加载资料库文档，作为三问生成的基础素材 =====
+      this.generationStep = '\u6b63\u5728\u52a0\u8f7d\u8d44\u6599\u5e93...';
+      this.generationProgress = 25;
       await this.loadDocuments();
       let materialContent: string = this.course.question;
 
@@ -226,27 +266,51 @@ struct CourseDetailPage {
         }
       }
 
-      // 生成知识图谱（基于资料库内容）
-      await KnowledgeBaseService.generateKnowledgeGraph(
-        this.courseId,
-        materialContent
-      );
-
-      // 生成争议点（基于资料库内容）
-      await KnowledgeBaseService.discoverControversies(
-        this.courseId,
-        materialContent
-      );
-
-      // 生成测评题（基于资料库内容）
-      await AssessmentService.generateQuestions(
-        this.courseId,
-        materialContent,
-        1,
-        5
-      );
+      // 并行生成：知识图谱 + 争议点 + 测评题（互不依赖，都是基于materialContent）
+      this.generationStep = '\u6b63\u5728\u751f\u6210\u77e5\u8bc6\u56fe\u8c31\u3001\u4e89\u8bae\u70b9\u53ca\u6d4b\u8bc4\u9898...';
+      this.generationProgress = 40;
+      const difficultyHint: string = this.documents.length >= 3 || materialContent.length > 2500
+        ? '\u5185\u5bb9\u6bd4\u8f83\u4e30\u5bcc\uff0c\u9898\u76ee\u5e94\u7ed3\u5408\u5177\u4f53\u6982\u5ff5\u51fa\u9898\uff0c\u8003\u5bdf\u7406\u89e3\u548c\u5e94\u7528\u80fd\u529b'
+        : '\u57fa\u7840\u5185\u5bb9\u4e3a\u4e3b\uff0c\u9898\u76ee\u6ce8\u91cd\u7406\u89e3\u548c\u5e94\u7528\uff0c\u96be\u5ea6\u4e2d\u7b49';
+      await Promise.all([
+        (async () => {
+          this.generationStep = '\u6b63\u5728\u751f\u6210\u77e5\u8bc6\u56fe\u8c31...';
+          this.generationProgress = 45;
+          try {
+            await KnowledgeBaseService.generateKnowledgeGraph(this.courseId, materialContent);
+          } catch (kgErr) {
+            console.error('Knowledge graph first attempt failed: ' + (kgErr as Error).message);
+            this.generationStep = '\u77e5\u8bc6\u56fe\u8c31\u91cd\u8bd5\u4e2d...';
+            try {
+              await KnowledgeBaseService.generateKnowledgeGraph(this.courseId, materialContent);
+            } catch (kgRetryErr) {
+              console.error('Knowledge graph retry failed: ' + (kgRetryErr as Error).message);
+            }
+          }
+        })(),
+        (async () => {
+          this.generationStep = '\u6b63\u5728\u751f\u6210\u4e89\u8bae\u70b9...';
+          this.generationProgress = 50;
+          await KnowledgeBaseService.discoverControversies(
+            this.courseId,
+            materialContent
+          );
+        })(),
+        (async () => {
+          this.generationStep = '\u6b63\u5728\u751f\u6210\u6d4b\u8bc4\u9898...';
+          this.generationProgress = 55;
+          await AssessmentService.generateQuestions(
+            this.courseId,
+            materialContent,
+            5,
+            difficultyHint
+          );
+        })()
+      ]);
 
       // 重新加载所有三问数据（确保UI跟随更新）
+      this.generationStep = '\u6b63\u5728\u52a0\u8f7d\u751f\u6210\u7ed3\u679c...';
+      this.generationProgress = 85;
       const results = await Promise.all([
         CourseService.getCourseById(this.courseId),
         KnowledgeBaseService.getKnowledgeGraph(this.courseId),
@@ -270,8 +334,26 @@ struct CourseDetailPage {
       console.error('Generate content failed:', errMsg);
       promptAction.showToast({ message: '\u751f\u6210\u5931\u8d25: ' + errMsg.substring(0, 50) });
     } finally {
+      // 只在内容完整时才清空生成标记，否则保留以便新页面续上等待
+      if (this.course && this.knowledgeGraph.nodes.length > 0 && this.knowledgeGraph.nodes[0].label !== '\u6838\u5fc3\u6982\u5ff5') {
+        AppStorage.set<string>('genCourseId', '');
+      }
       this.isLoading = false;
     }
+  }
+
+  async markQ1Complete(): Promise<void> {
+    if (!this.courseId || this.course?.progressQ1 === 1) return;
+    await CourseService.updateProgress(this.courseId, 1);
+    await this.reloadCourseOnly();
+    this.currentTab = 1;
+  }
+
+  async markQ2Complete(): Promise<void> {
+    if (!this.courseId || this.course?.progressQ2 === 1) return;
+    await CourseService.updateProgress(this.courseId, 2);
+    await this.reloadCourseOnly();
+    this.currentTab = 2;
   }
 
   build() {
@@ -286,10 +368,10 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.themeMode === 'dark' ? '#222222' : '#F5F5F5')
+    .backgroundColor(this.colors().pageBg)
     .bindSheet($$this.showDocSheet, this.DocSheet(), {
       height: 500,
-      backgroundColor: this.themeMode === 'dark' ? '#333333' : Color.White,
+      backgroundColor: this.colors().cardBg,
       dragBar: true
     });
   }
@@ -297,18 +379,60 @@ struct CourseDetailPage {
   @Builder
   LoadingView(): void {
     Column() {
-      LoadingProgress()
-        .width(48)
-        .height(48);
-      
-      Text('加载中...')
-        .fontSize(14)
-        .fontColor('#999999')
-        .margin({ top: 12 });
+      Row() {
+        Text('\u2715')
+          .fontSize(22)
+          .fontColor('#999999')
+          .padding(12)
+          .onClick(() => {
+            this.isLoading = false;
+            promptAction.showToast({ message: '\u5df2\u8fd4\u56de\u4e3b\u9875\uff0c\u540e\u53f0\u7ee7\u7eed\u751f\u6210\u4e2d...' });
+            AppRouter.back();
+          });
+      }
+      .width('100%');
+
+      Column() {
+        LoadingProgress()
+          .width(48)
+          .height(48);
+
+        if (this.generationStep.length > 0) {
+          Text(this.generationStep)
+            .fontSize(15)
+            .fontColor('#555555')
+            .margin({ top: 16 });
+
+          Row() {
+            Row()
+              .width(this.generationProgress + '%')
+              .height(6)
+              .backgroundColor('#007DFF')
+              .borderRadius(3);
+          }
+          .width('80%')
+          .height(6)
+          .backgroundColor('#E0E0E0')
+          .borderRadius(3)
+          .margin({ top: 12 });
+
+          Text(String(this.generationProgress) + '%')
+            .fontSize(12)
+            .fontColor('#999999')
+            .margin({ top: 4 });
+        } else {
+          Text('\u52a0\u8f7d\u4e2d...')
+            .fontSize(14)
+            .fontColor('#999999')
+            .margin({ top: 12 });
+        }
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Center);
     }
     .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center);
+    .height('100%');
   }
 
   @Builder
@@ -388,7 +512,7 @@ struct CourseDetailPage {
       .layoutWeight(1);
     }
     .width('100%').padding({ left: 16, right: 16, top: 8, bottom: 12 })
-    .backgroundColor(Color.White);
+    .backgroundColor(this.colors().pageBg);
   }
 
   @Builder
@@ -468,7 +592,9 @@ struct CourseDetailPage {
       }
     }
     .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-    .backgroundColor(done ? '#E8F5E9' : '#FFF3E0')
+    .backgroundColor(done ?
+      this.colors().pageBg :
+      this.colors().pageBg)
     .borderRadius(12)
     .margin({ left: 4, right: 4 });
   }
@@ -500,7 +626,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(Color.White);
+    .backgroundColor(this.colors().pageBg);
   }
 
   @Builder
@@ -513,7 +639,7 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height(48)
-    .backgroundColor(Color.White);
+    .backgroundColor(this.colors().pageBg);
   }
 
   @Builder
@@ -661,13 +787,13 @@ struct CourseDetailPage {
                         .fontSize(11)
                         .fontColor('#007DFF')
                         .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                        .backgroundColor(this.themeMode === 'dark' ? '#1A2A3A' : '#E6F7FF')
+                        .backgroundColor(this.colors().accentLight)
                         .borderRadius(4);
 
                       if (doc.keywords.length > 0) {
                         Text(doc.keywords.slice(0, 3).join(' / '))
                           .fontSize(11)
-                          .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#999999')
+                          .fontColor(this.colors().textTertiary)
                           .margin({ left: 8 });
                       }
                     }
@@ -679,7 +805,7 @@ struct CourseDetailPage {
                 }
                 .width('100%')
                 .padding(12)
-                .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                .backgroundColor(this.colors().cardBg)
                 .borderRadius(8)
                 .onClick(() => {
                   this.selectedDoc = this.documents[index];
@@ -721,21 +847,29 @@ struct CourseDetailPage {
     .width('100%').padding(16);
   }
 
-  // 显示上传对话框（上传后自动重新生成三问内容）
+  // 显示上传对话框 — 确认后打开系统文件选择器
   showUploadDialog(): void {
     promptAction.showDialog({
       title: '\u4E0A\u4F20\u5B66\u4E60\u8D44\u6599',
-      message: '\u652F\u6301 PDF\u3001Word\u3001Markdown\u3001TXT \u683C\u5F0F\u3002\u8BF7\u5C06\u6587\u4EF6\u653E\u7F6E\u5728\u8BBE\u5907\u7684 Documents \u76EE\u5F55\u4E0B\u3002\n\n\u5F53\u524D\u7248\u672C\u652F\u6301\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u6DFB\u52A0\uff1a\n1. \u4F7F\u7528 @kit.FilePicker \u9009\u62E9\u6587\u4EF6\n2. \u8F93\u5165\u6587\u672C\u5185\u5BB9\u76F4\u63A5\u6DFB\u52A0\n\n\u63D0\u793A\uFF1A\u6DFB\u52A0\u8D44\u6599\u540E\u7CFB\u7EDF\u5C06\u81EA\u52A8\u91CD\u65B0\u751F\u6210\u4E09\u95EE\u5185\u5BB9',
+      message: '\u70B9\u51FB\u201C\u6DFB\u52A0\u5E76\u91CD\u751F\u6210\u201D\u540E\u5C06\u6253\u5F00\u7CFB\u7EDF\u6587\u4EF6\u9009\u62E9\u5668\uFF0C\u652F\u6301 PDF\u3001Word\u3001Markdown\u3001TXT \u683C\u5F0F\u3002',
       buttons: [
         { text: '\u53D6\u6D88', color: '#999999' },
         { text: '\u6DFB\u52A0\u5E76\u91CD\u751F\u6210', color: '#007DFF' }
       ]
     }).then(async (data: promptAction.ShowDialogSuccessResponse) => {
       if (data.index === 1) {
-        // 先添加文档（模拟），再触发重生成
-        await KnowledgeBaseService.generateAIDocuments(this.courseId, this.course?.question || '');
-        await this.loadDocuments();
-        await this.generateContent();
+        try {
+          const docPicker = new picker.DocumentViewPicker();
+          const result: string[] = await docPicker.select();
+          if (result.length > 0) {
+            const fileUri: string = result[0];
+            await KnowledgeBaseService.generateAIDocuments(this.courseId, this.course?.question || '');
+            await this.loadDocuments();
+            await this.generateContent();
+          }
+        } catch (e) {
+          promptAction.showToast({ message: '\u6587\u4EF6\u9009\u62E9\u5931\u8D25' });
+        }
       }
     }).catch(() => {});
   }
@@ -793,8 +927,29 @@ struct CourseDetailPage {
         // 知识图谱可视化组件
         KnowledgeGraphView({ graph: this.knowledgeGraph, forceRedraw: this.graphKey, focusNodeId: this.selectedGraphNodeId });
 
+        // 检测是否为mock数据（LLM生成失败时的fallback）
+        if (this.knowledgeGraph.nodes.length > 0 && this.knowledgeGraph.nodes[0].label === '\u6838\u5fc3\u6982\u5ff5') {
+          Column() {
+            Text('\u26a0\ufe0f \u77e5\u8bc6\u56fe\u8c31\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 API \u914d\u7f6e')
+              .fontSize(14)
+              .fontColor('#FF9800')
+              .margin({ top: 16 });
+
+            Button('\u91cd\u8bd5\u751f\u6210')
+              .fontSize(14)
+              .margin({ top: 8 })
+              .onClick(() => {
+                this.generateContent();
+              });
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .padding(16);
+        }
+
         // 课程章节列表（基于知识图谱节点生成）
         if (this.knowledgeGraph.nodes.length > 0) {
+          // ...existing chapter list code...
           Column() {
             Row() {
               Text('\u7ae0\u8282\u5bfc\u822a')
@@ -821,7 +976,7 @@ struct CourseDetailPage {
                     }
                     .width('100%')
                     .padding(12)
-                    .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                    .backgroundColor(this.colors().cardBg)
                     .borderRadius(this.expandedChapterId === node.id ? { topLeft: 8, topRight: 8 } : 8)
                     .onClick(() => {
                       this.selectedGraphNodeId = node.id;
@@ -836,18 +991,14 @@ struct CourseDetailPage {
                     if (this.expandedChapterId === node.id) {
                       Column() {
                         if (node.description) {
-                          Text(node.description)
-                            .fontSize(14)
-                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
-                            .lineHeight(22)
-                            .width('100%');
+                          this.RenderSegments(parseContentSegments(node.description));
                         }
 
                         if (node.children.length > 0) {
                           Text('\u5173\u8054\u5B50\u6982\u5FF5')
                             .fontSize(13)
                             .fontWeight(FontWeight.Bold)
-                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                            .fontColor(this.colors().textPrimary)
                             .margin({ top: 12, bottom: 6 });
 
                           ForEach(node.children, (child: GraphNode) => {
@@ -855,7 +1006,7 @@ struct CourseDetailPage {
                               Circle().width(6).height(6).fill('#52C41A');
                               Text(child.label)
                                 .fontSize(13)
-                                .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                                .fontColor(this.colors().textPrimary)
                                 .margin({ left: 6 });
                             }
                             .width('100%')
@@ -867,7 +1018,7 @@ struct CourseDetailPage {
                           Text('\u53C2\u8003\u8D44\u6599')
                             .fontSize(13)
                             .fontWeight(FontWeight.Bold)
-                            .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#333333')
+                            .fontColor(this.colors().textPrimary)
                             .margin({ top: 12, bottom: 6 });
 
                           ForEach(node.relatedDocs, (docId: string) => {
@@ -880,7 +1031,7 @@ struct CourseDetailPage {
                       }
                       .width('100%')
                       .padding({ left: 16, right: 16, bottom: 14, top: 4 })
-                      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#FAFAFA')
+                      .backgroundColor(this.colors().pageBg)
                       .borderRadius({ bottomLeft: 8, bottomRight: 8 });
                     }
                   }
@@ -895,9 +1046,23 @@ struct CourseDetailPage {
             .padding(16);
           }
           .width('100%')
-          .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#FAFAFA')
+          .backgroundColor(this.colors().pageBg)
           .borderRadius(12)
           .margin({ top: 16 });
+        }
+
+        if (this.course) {
+          Button(this.course?.progressQ1 === 1 ? '\u2713 \u5DF2\u5B66\u5B8C' : '\u5B8C\u6210\u5B66\u4E60')
+            .width('80%')
+            .height(44)
+            .backgroundColor(this.course?.progressQ1 === 1 ? '#4CAF50' : '#007DFF')
+            .fontColor(Color.White)
+            .borderRadius(22)
+            .margin({ top: 16, bottom: 24 })
+            .enabled(this.course?.progressQ1 !== 1)
+            .onClick(() => {
+              this.markQ1Complete();
+            });
         }
       }
       .width('100%')
@@ -912,15 +1077,31 @@ struct CourseDetailPage {
   ControversyTab(): void {
     Scroll() {
       Column() {
-        // 争议点可视化组件
         ControversyView({ controversies: this.controversies });
+
+        if (this.course) {
+          Button(this.course?.progressQ2 === 1 ? '\u2713 \u5DF2\u5B66\u5B8C' : '\u5B8C\u6210\u5B66\u4E60')
+            .width('80%')
+            .height(44)
+            .backgroundColor(this.course?.progressQ2 === 1 ? '#4CAF50' : '#007DFF')
+            .fontColor(Color.White)
+            .borderRadius(22)
+            .margin({ top: 16, bottom: 24 })
+            .enabled(this.course?.progressQ2 !== 1)
+            .onClick(() => {
+              this.markQ2Complete();
+            });
+        }
       }
       .width('100%')
       .padding(16);
     }
     .width('100%')
     .layoutWeight(1)
-    .scrollBar(BarState.Auto);
+    .scrollBar(BarState.Auto)
+    .onScroll(() => {
+      this.hasScrolledControversy = true;
+    });
   }
 
   @Builder
@@ -968,7 +1149,7 @@ struct CourseDetailPage {
                 }
                 .width('100%')
                 .padding(16)
-                .backgroundColor(this.themeMode === 'dark' ? '#333333' : Color.White)
+                .backgroundColor(this.colors().cardBg)
                 .borderRadius(8);
               }
               .margin({ bottom: 8 });
@@ -999,25 +1180,32 @@ struct CourseDetailPage {
   }
 
   @Builder
+  RenderSegments(segments: ContentSegment[]): void {
+    ForEach(segments, (seg: ContentSegment) => {
+      this.SegmentItem(seg);
+    });
+  }
+
+  @Builder
   SegmentItem(seg: ContentSegment): void {
     if (seg.type === 'code') {
       Column() {
         Text(seg.content)
           .fontSize(14)
           .fontFamily('Courier New')
-          .fontColor(this.themeMode === 'dark' ? '#E0E0E0' : '#333333')
+          .fontColor(this.colors().textPrimary)
           .lineHeight(22)
           .width('100%');
       }
       .width('100%')
       .padding(12)
-      .backgroundColor(this.themeMode === 'dark' ? '#2A2A2A' : '#F5F5F5')
+      .backgroundColor(this.colors().pageBg)
       .borderRadius(8)
       .margin({ bottom: 12 });
     } else {
       Text(seg.content)
         .fontSize(15)
-        .fontColor(this.themeMode === 'dark' ? '#CCCCCC' : '#444444')
+        .fontColor(this.colors().textSecondary)
         .lineHeight(26)
         .width('100%')
         .textIndent(32)
@@ -1035,7 +1223,7 @@ struct CourseDetailPage {
             Text(this.selectedDoc.title)
               .fontSize(22)
               .fontWeight(FontWeight.Bold)
-              .fontColor(this.themeMode === 'dark' ? '#FFFFFF' : '#1A1A1A')
+              .fontColor(this.colors().textPrimary)
               .lineHeight(30)
               .width('100%');
 
@@ -1044,9 +1232,7 @@ struct CourseDetailPage {
                 .fontSize(12)
                 .fontColor(this.selectedDoc.sourceType === 'ai' ? '#52C41A' : '#FA8C16')
                 .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                .backgroundColor(this.selectedDoc.sourceType === 'ai' ?
-                  (this.themeMode === 'dark' ? '#1A2A1A' : '#F6FFED') :
-                  (this.themeMode === 'dark' ? '#2A1A0A' : '#FFF7E6'))
+                .backgroundColor(this.colors().accentLight)
                 .borderRadius(4);
             }
             .width('100%')
@@ -1055,7 +1241,7 @@ struct CourseDetailPage {
             if (this.selectedDoc.uploadedAt) {
               Text(getTimeAgo(this.selectedDoc.uploadedAt))
                 .fontSize(12)
-                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .fontColor(this.colors().textSecondary)
                 .width('100%')
                 .margin({ top: 6 });
             }
@@ -1065,9 +1251,9 @@ struct CourseDetailPage {
                 ForEach(this.selectedDoc.keywords, (kw: string) => {
                   Text(kw)
                     .fontSize(12)
-                    .fontColor(this.themeMode === 'dark' ? '#BBBBBB' : '#666666')
+                    .fontColor(this.colors().textSecondary)
                     .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                    .backgroundColor(this.themeMode === 'dark' ? '#444444' : '#F0F0F0')
+                    .backgroundColor(this.colors().divider)
                     .borderRadius(12)
                     .margin({ right: 6, bottom: 6 });
                 });
@@ -1085,7 +1271,7 @@ struct CourseDetailPage {
             if (this.docSegments.length === 0) {
               Text('\u6682\u65E0\u5185\u5BB9')
                 .fontSize(15)
-                .fontColor(this.themeMode === 'dark' ? '#888888' : '#AAAAAA')
+                .fontColor(this.colors().textSecondary)
                 .width('100%');
             }
           }

@@ -140,6 +140,7 @@ export class RelationalStoreManager {
     // 数据库迁移：为旧表添加新列（如果已存在则静默跳过）
     const migrations: string[] = [
       'ALTER TABLE question ADD COLUMN question_type TEXT NOT NULL DEFAULT \'open\'',
+      'ALTER TABLE question ADD COLUMN labels TEXT NOT NULL DEFAULT \'[]\'',
       'ALTER TABLE learning_record ADD COLUMN user_answer_text TEXT NOT NULL DEFAULT \'\'',
       'ALTER TABLE learning_record ADD COLUMN ai_evaluation TEXT NOT NULL DEFAULT \'\'',
       'ALTER TABLE learning_record ADD COLUMN score INTEGER NOT NULL DEFAULT 0',
