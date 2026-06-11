@@ -8,6 +8,7 @@
     "pages/Q1_KnowledgeGraphPage",
     "pages/Q2_ControversyPage",
     "pages/Q3_AssessmentPage",
-    "pages/AppearancePage"
+    "pages/AppearancePage",
+    "pages/KnowledgeHub"
   ]
 }

@@ -2,6 +2,7 @@
 import { router } from '@kit.ArkUI';
 import { promptAction } from '@kit.ArkUI';
 import { picker } from '@kit.CoreFileKit';
+import { fileIo } from '@kit.CoreFileKit';
 import { Course } from '../models/Course';
 import { KnowledgeGraph, GraphNode } from '../models/KnowledgeGraph';
 import { Controversy } from '../models/Controversy';
@@ -15,12 +16,14 @@ import { relationalStore } from '@kit.ArkData';
 import { AppRouter } from '../AppRouter';
 import { EventBus, EVENTS } from '../utils/EventBus';
 import { CourseHealthService, CourseContentStatus } from '../services/CourseHealthService';
+import { ExportService } from '../services/ExportService';
 import { KnowledgeGraphView } from '../components/KnowledgeGraphView';
 import { ControversyView } from '../components/ControversyView';
 import { RadarChartView } from '../components/RadarChartView';
 import { getTimeAgo } from '../utils/DateUtils';
 import { UiStyle, StyleColors } from '../utils/UiStyle';
 import { parseParagraphs, parseContentSegments, ContentSegment } from '../utils/ContentUtils';
+import { StudyStatsService } from '../services/StudyStatsService';
 
 @Entry
 @Component
@@ -58,6 +61,7 @@ struct CourseDetailPage {
       this.loadCourseData();
       this.setupEventListeners();
     }
+    StudyStatsService.startStudySession();
   }
 
   // 从AssessmentDetailPage返回时全面刷新
@@ -299,10 +303,12 @@ struct CourseDetailPage {
         (async () => {
           this.generationStep = '\u6b63\u5728\u751f\u6210\u6d4b\u8bc4\u9898...';
           this.generationProgress = 55;
+          await AssessmentService.deleteQuestionsByCourse(this.courseId);
+          await AssessmentService.deleteLearningRecordsByCourse(this.courseId);
           await AssessmentService.generateQuestions(
             this.courseId,
             materialContent,
-            5,
+            8,
             difficultyHint
           );
         })()
@@ -1170,6 +1176,23 @@ struct CourseDetailPage {
             .onClick(() => {
               AppRouter.toAssessmentDetail(this.courseId);
             });
+
+          if (this.course && this.course.progressPercent === 100) {
+            Row() {
+              Button('导出 JSON')
+                .height(40).borderRadius(20)
+                .fontSize(14)
+                .layoutWeight(1).margin({ right: 4 })
+                .onClick(() => { this.exportReport('json'); });
+              Button('导出 Markdown')
+                .height(40).borderRadius(20)
+                .fontSize(14)
+                .layoutWeight(1).margin({ left: 4 })
+                .onClick(() => { this.exportReport('md'); });
+            }
+            .width('80%')
+            .margin({ bottom: 24 });
+          }
         }
       }
       .width('100%');
@@ -1284,5 +1307,49 @@ struct CourseDetailPage {
     }
     .width('100%')
     .height('100%');
+  }
+
+  async exportReport(format: string): Promise<void> {
+    try {
+      if (!this.course) return;
+      const title = this.course.title;
+      let content = '';
+      if (format === 'json') {
+        content = await ExportService.exportReportAsJSON(this.courseId, title);
+      } else {
+        content = await ExportService.exportReportAsMarkdown(this.courseId, title);
+      }
+      if (!content || content.length === 0) {
+        promptAction.showToast({ message: '\u6682\u65E0\u6D4B\u8BC4\u6570\u636E\u53EF\u5BFC\u51FA' });
+        return;
+      }
+
+      const fileName: string = 'assessment_report_' + new Date().getTime() + '.' + format;
+
+      // 尝试系统文件保存对话框
+      try {
+        const docPicker = new picker.DocumentViewPicker();
+        const saveResult: string[] = await docPicker.save({ newFileNames: [fileName] });
+        if (saveResult && saveResult.length > 0) {
+          const destFile: fileIo.File = fileIo.openSync(saveResult[0], fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY);
+          fileIo.writeSync(destFile.fd, content);
+          fileIo.closeSync(destFile);
+          promptAction.showToast({ message: '\u5BFC\u51FA\u6210\u529F' });
+          return;
+        }
+      } catch {
+        // 回退：写入应用沙箱
+      }
+
+      const context: Context = getContext(this) as Context;
+      const filePath: string = context.filesDir + '/' + fileName;
+      const file: fileIo.File = fileIo.openSync(filePath, fileIo.OpenMode.CREATE | fileIo.OpenMode.WRITE_ONLY);
+      fileIo.writeSync(file.fd, content);
+      fileIo.closeSync(file);
+      promptAction.showToast({ message: '\u5BFC\u51FA\u6210\u529F\uFF1A' + fileName });
+    } catch (e) {
+      console.error('Export failed: ' + (e as Error).message);
+      promptAction.showToast({ message: '\u5BFC\u51FA\u5931\u8D25' });
+    }
   }
 }

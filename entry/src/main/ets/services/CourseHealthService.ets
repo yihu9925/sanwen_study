@@ -171,7 +171,13 @@ export class CourseHealthService {
   static async fillQ3Questions(courseId: string, content: string): Promise<boolean> {
     try {
       const material: string = await CourseHealthService.getMaterialContent(courseId, content);
-      await AssessmentService.generateQuestions(courseId, material, 5);
+      await AssessmentService.deleteQuestionsByCourse(courseId);
+      await AssessmentService.deleteLearningRecordsByCourse(courseId);
+      const store = RelationalStoreManager.getStore();
+      const radPredicates = new relationalStore.RdbPredicates('course');
+      radPredicates.equalTo('id', courseId);
+      await store.update({ 'radar_data': '{}' }, radPredicates);
+      await AssessmentService.generateQuestions(courseId, material, 8);
       await CourseService.updateProgress(courseId, 3);
       return true;
     } catch (e) {

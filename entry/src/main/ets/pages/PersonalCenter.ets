@@ -5,6 +5,8 @@ import { UserProfileService } from '../services/UserProfileService';
 import { CourseService } from '../services/CourseService';
 import { AppRouter } from '../AppRouter';
 import { UiStyle, StyleColors } from '../utils/UiStyle';
+import { LineChartView } from '../components/LineChartView';
+import { BarChartView } from '../components/BarChartView';
 
 @Component
 export struct PersonalCenter {
@@ -13,6 +15,10 @@ export struct PersonalCenter {
   @State avatarVersion: number = 0;
   @State isEditingName: boolean = false;
   @State editNameValue: string = '';
+  @State weeklyMinutes: number[] = [0, 0, 20, 30, 0, 0, 0];
+  @State subjectScores: number[] = [90, 75];
+  @State subjectLabels: string[] = ['\u6570\u5B66', 'Java'];
+  @State chartVersion: number = 1;
   @StorageLink('themeMode') themeMode: string = 'auto';
   @StorageLink('uiStyle') uiStyle: string = 'default';
   @StorageLink('statTotal') statTotal: number = 0;
@@ -80,37 +86,44 @@ export struct PersonalCenter {
 
   build() {
     Column() {
-      Column() {
-        this.UserInfoCard();
+      Scroll() {
+        Column() {
+          this.UserInfoCard();
 
-        // 学习统计数据
-        Row() {
-          Column() {
-            Text(this.statTotal.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
-            Text('\u8BFE\u7A0B\u603B\u6570').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
+          // 学习统计数据
+          Row() {
+            Column() {
+              Text(this.statTotal.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
+              Text('\u8BFE\u7A0B\u603B\u6570').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
+            }
+            .layoutWeight(1);
+            Divider().vertical(true).height(40).color(this.colors().divider);
+            Column() {
+              Text(this.statCompleted.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
+              Text('\u5DF2\u5B8C\u6210').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
+            }
+            .layoutWeight(1);
+            Divider().vertical(true).height(40).color(this.colors().divider);
+            Column() {
+              Text(this.statArchived.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
+              Text('\u5DF2\u5F52\u6863').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
+            }
+            .layoutWeight(1);
           }
-          .layoutWeight(1);
-          Divider().vertical(true).height(40).color(this.colors().divider);
-          Column() {
-            Text(this.statCompleted.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
-            Text('\u5DF2\u5B8C\u6210').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
-          }
-          .layoutWeight(1);
-          Divider().vertical(true).height(40).color(this.colors().divider);
-          Column() {
-            Text(this.statArchived.toString()).fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.colors().accent);
-            Text('\u5DF2\u5F52\u6863').fontSize(12).fontColor(this.colors().textTertiary).margin({ top: 4 });
-          }
-          .layoutWeight(1);
+          .width('100%')
+          .padding(16)
+          .backgroundColor(this.colors().cardBg)
+          .margin({ top: 12 });
+
+          // 学习数据总览
+          this.StudyOverview();
+
+          this.FunctionList();
         }
-        .width('100%')
-        .padding(16)
-        .backgroundColor(this.colors().cardBg)
-        .margin({ top: 12 });
-
-        this.FunctionList();
+        .width('100%');
       }
-      .width('100%');
+      .layoutWeight(1)
+      .scrollBar(BarState.Auto);
     }
     .width('100%')
     .height('100%')
@@ -186,10 +199,56 @@ export struct PersonalCenter {
   }
 
   @Builder
+  StudyOverview(): void {
+    Column() {
+      Row() {
+        Text('\u5B66\u4E60\u6570\u636E\u603B\u89C8')
+          .fontSize(16).fontWeight(FontWeight.Bold);
+      }
+      .width('100%').padding({ left: 16, top: 16, bottom: 4 });
+
+      // 周学习时长折线图
+      Column() {
+        LineChartView({
+          chartTitle: '\u5468\u5B66\u4E60\u65F6\u957F\u53D8\u5316',
+          data: this.weeklyMinutes,
+          chartVersion: this.chartVersion
+        });
+      }
+      .width('100%')
+      .backgroundColor(this.colors().cardBg)
+      .borderRadius(this.colors().cardRadius)
+      .margin({ top: 8 });
+
+      // 学科能力柱状图
+      Column() {
+        BarChartView({
+          chartTitle: '\u5B66\u79D1\u80FD\u529B\u5BF9\u6BD4',
+          data: this.subjectScores,
+          labels: this.subjectLabels,
+          chartVersion: this.chartVersion
+        });
+      }
+      .width('100%')
+      .backgroundColor(this.colors().cardBg)
+      .borderRadius(this.colors().cardRadius)
+      .margin({ top: 12 });
+    }
+    .width('100%')
+    .margin({ bottom: 8 });
+  }
+
+  @Builder
   FunctionList(): void {
     Column() {
       this.FunctionItem('\uD83D\uDCDA \u5F52\u6863\u7BA1\u7406', '\u67E5\u770B\u5DF2\u5F52\u6863\u7684\u8BFE\u7A0B', () => {
         AppRouter.toArchive();
+      });
+
+      Divider();
+
+      this.FunctionItem('\uD83D\uDCC1 \u8D44\u6599\u4E0A\u4F20\u5386\u53F2', '\u67E5\u770B\u6587\u6863\u4E0A\u4F20\u8BB0\u5F55', () => {
+        AppRouter.toKnowledgeHub();
       });
 
       Divider();

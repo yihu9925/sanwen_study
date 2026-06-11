@@ -6,6 +6,7 @@ import { getTimeAgo } from '../utils/DateUtils';
 import { parseContentSegments, ContentSegment } from '../utils/ContentUtils';
 import { UiStyle, StyleColors } from '../utils/UiStyle';
 
+@Entry
 @Component
 export struct KnowledgeHub {
   @StorageLink('activeTabIndex') activeTabIndex: number = 0;

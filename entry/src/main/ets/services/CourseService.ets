@@ -233,6 +233,7 @@ export class CourseService {
       'progress_q3': 0,
       'progress_percent': 0,
       'status': 'active',
+      'radar_data': '{}',
       'updated_at': new Date().toISOString()
     };
     await store.update(valueBucket, predicates);

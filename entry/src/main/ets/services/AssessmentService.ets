@@ -264,4 +264,20 @@ export class AssessmentService {
     };
     return keys[level] || 'remember';
   }
+
+  // 删除课程的所有旧测评题（重新生成前清理）
+  static async deleteQuestionsByCourse(courseId: string): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('question');
+    predicates.equalTo('course_id', courseId);
+    await store.delete(predicates);
+  }
+
+  // 删除课程的所有旧答题记录（重新生成前清理）
+  static async deleteLearningRecordsByCourse(courseId: string): Promise<void> {
+    const store = RelationalStoreManager.getStore();
+    const predicates = new relationalStore.RdbPredicates('learning_record');
+    predicates.equalTo('course_id', courseId);
+    await store.delete(predicates);
+  }
 }

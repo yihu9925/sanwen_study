@@ -3,6 +3,7 @@ import { PersonalCenterHost } from './PersonalCenterHost';
 import { KnowledgeHubHost } from './KnowledgeHubHost';
 import { HomePage } from './HomePage';
 import { CourseService } from '../services/CourseService';
+import { StudyStatsService } from '../services/StudyStatsService';
 import { UiStyle, StyleColors } from '../utils/UiStyle';
 
 @Entry
@@ -20,6 +21,7 @@ struct Index {
   }
 
   onPageShow(): void {
+    StudyStatsService.endStudySession();
     // 从推送页面返回时，强制所有 tab 重建
     CourseService.refreshStatsInStorage('default_user').then(() => {
       this.homePageKey++;
